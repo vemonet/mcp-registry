@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-// import { useSearchParams } from 'react-router';
 import {
   Search,
   Link2,
@@ -583,9 +582,9 @@ export default function App() {
                           {item._meta?.['io.modelcontextprotocol.registry/official']?.publishedAt && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="flex items-center gap-1 flex-shrink-0">
+                                <div className="flex text-muted-foreground items-center gap-1 flex-shrink-0">
                                   <Calendar className="h-4 w-4" />
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className="text-xs">
                                     {(() => {
                                       const date = new Date(
                                         item._meta['io.modelcontextprotocol.registry/official'].updatedAt ||

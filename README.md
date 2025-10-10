@@ -1,19 +1,19 @@
 # 🔌 MCP registry UI
 
-Unofficial web UI to explore the [official registry](https://github.com/modelcontextprotocol/registry) for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers.
+Unofficial web UI to access the [official registry](https://github.com/modelcontextprotocol/registry) for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers.
 
-It lets you explore available MCP servers and easily install them into compatible clients such as [Visual Studio Code](https://code.visualstudio.com/docs/copilot/customization/mcp-servers) or [Cursor](https://cursor.com/docs/context/mcp).
+It lets you find available MCP servers, and easily install them into compatible clients such as [Visual Studio Code](https://code.visualstudio.com/docs/copilot/customization/mcp-servers) or [Cursor](https://cursor.com/docs/context/mcp).
 
-- 🌍 Explore all MCP servers published to the official MCP registry
+- 🌍 Access all MCP servers published to the official MCP registry
 - 🔌 Point the web UI at any compatible registry URL
 - 🔎 Search by server name, and filter by last published date
 - 📥 Install MCP servers into compatible clients in 1 click (VSCode and Cursor)
 - 🧩 Build a stack from selected MCP servers, and export to VSCode `mcp.json`, or Cursor config formats
 - 🦊 Runs entirely in the browser, and fetches data directly from [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/docs)
 
-> [!IMPORTANT]
+> [!NOTE]
 >
-> Contributions welcome, in particular regarding integration of new client install links.
+> Contributions welcome, in particular regarding integration of new clients install links/config.
 
 ## 🧑‍💻 Development
 
@@ -27,13 +27,11 @@ npm i
 
 ### ⚡️ Start server in development
 
-Start the development server with HMR (Hot Module Replacement):
+Start the development server at http://localhost:5173
 
 ```sh
 npm run dev
 ```
-
-Your application will be available at `http://localhost:5173`.
 
 > [!TIP]
 >
@@ -82,7 +80,8 @@ npm run build
 > Test it with:
 >
 > ```sh
-> npx http-server dist
+> cp -R dist dist/mcp-registry
+> npx http-server dist -o mcp-registry
 > ```
 
 > [!NOTE]

@@ -1,4 +1,4 @@
-import { Search, Unplug, CheckCircle, Server, Info, TriangleAlert } from 'lucide-react';
+import { BookPlus, Search, Unplug, CheckCircle, Server, Info, TriangleAlert } from 'lucide-react';
 
 import { Button } from '~/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
@@ -45,6 +45,21 @@ export const AboutPopup = () => {
                   Model Context Protocol (MCP)
                 </a>{' '}
                 servers.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <BookPlus className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
+              <p>
+                Follow the{' '}
+                <a
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href="https://github.com/modelcontextprotocol/registry/blob/main/docs/guides/publishing/publish-server.md"
+                  className="text-primary hover:text-primary/80 transition-colors"
+                >
+                  official registry instructions
+                </a>{' '}
+                to publish your own MCP server.
               </p>
             </div>
             <div className="flex gap-3">
