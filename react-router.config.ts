@@ -6,7 +6,7 @@ const isDev = import.meta.env.MODE === 'development';
 
 export default {
   ssr: false,
-  ...(isDev ? { basename: '/mcp-registry' } : {}),
+  ...(isDev ? { basename: '/mcp-registry/' } : {}),
   // If you prefer a trailing slash version, change above to '/mcp-registry/'.
   // https://reactrouter.com/start/framework/rendering#static-pre-rendering
   async prerender() {
