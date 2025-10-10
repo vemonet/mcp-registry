@@ -2,7 +2,7 @@
 
 [![Deploy to GitHub Pages](https://github.com/vemonet/mcp-registry/actions/workflows/deploy.yml/badge.svg)](https://github.com/vemonet/mcp-registry/actions/workflows/deploy.yml)
 
-Unofficial web UI to access the [official registry](https://github.com/modelcontextprotocol/registry) for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers.
+Unofficial web UI to access the [official registry](https://github.com/modelcontextprotocol/registry) for [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers available at **[vemonet.github.io/mcp-registry](https://vemonet.github.io/mcp-registry)**.
 
 It lets you find available MCP servers, and easily install them into compatible clients such as [Visual Studio Code](https://code.visualstudio.com/docs/copilot/customization/mcp-servers) or [Cursor](https://cursor.com/docs/context/mcp).
 
