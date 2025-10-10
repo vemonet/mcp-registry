@@ -82,12 +82,12 @@ npm run build
 > Test it with:
 >
 > ```sh
-> npx http-server build/client
+> npx http-server dist
 > ```
 
 > [!NOTE]
 >
-> If you're familiar with deploying Node applications, the built-in app server is production-ready. Deploy the `build` folder.
+> If you're familiar with deploying Node applications, the built-in app server is production-ready. Deploy the `dist` folder.
 
 ### 🐳 Docker Deployment
 

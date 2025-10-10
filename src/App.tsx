@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router';
+import { useState, useEffect, useCallback } from 'react';
+// import { useSearchParams } from 'react-router';
 import {
   Search,
   Link2,
@@ -60,34 +60,6 @@ import { DatePicker } from '~/components/date-picker';
 import { AboutPopup } from '~/components/about';
 import type { ServerItem, ServerPackage, StackItem } from '~/lib/types';
 
-export function meta() {
-  return [
-    { title: 'MCP Registry UI' },
-    { name: 'description', content: 'Explore MCP servers' },
-    { property: 'og:title', content: 'MCP Registry UI' },
-    { property: 'og:description', content: 'Explore MCP servers' },
-    { property: 'og:type', content: 'website' },
-    { property: 'og:site_name', content: 'MCP Registry' },
-    // { property: "og:image", content: "website" },
-    // { property: "og:logo", content: "website" },
-    {
-      'script:ld+json': {
-        '@context': 'https://schema.org',
-        '@type': 'WebSite',
-        name: 'MCP Registry UI',
-        description:
-          'Explore MCP servers - Unofficial web UI to explore the official registry for Model Context Protocol (MCP) servers',
-        url: 'https://yourdomain.com',
-        potentialAction: {
-          '@type': 'SearchAction',
-          target: 'https://vemonet.github.io/mcp-registry?search={search_term_string}',
-          'query-input': 'required name=search_term_string',
-        },
-      },
-    },
-  ];
-}
-
 // TODO: http://localhost:5173/server/ai.alpic.test/test-mcp-server
 // Many remote servers ~page 5:
 // com.cloudflare.mcp/mcp
@@ -98,12 +70,50 @@ export function meta() {
 
 // Empty packages: com.falkordb/QueryWeaver
 
-export default function Home() {
-  const [searchParams, setSearchParams] = useSearchParams();
+export default function App() {
   const [servers, setServers] = useState<ServerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState(searchParams.get('search') || '');
+
+  // Initialize `search` from the URL query string (if present).
+  // Use a lazy initializer and guard window for environments without DOM.
+  const [search, setSearch] = useState<string>(() => {
+    try {
+      if (typeof window === 'undefined') return '';
+      const params = new URLSearchParams(window.location.search);
+      return params.get('search') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // Keep the URL query string in sync with `search` (debounced, replaceState so we don't clutter history)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let mounted = true;
+    const handler = setTimeout(() => {
+      if (!mounted) return;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (search) {
+          params.set('search', search);
+        } else {
+          params.delete('search');
+        }
+        const query = params.toString();
+        const newUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+        window.history.replaceState(null, '', newUrl);
+      } catch {
+        // ignore
+      }
+    }, 250);
+
+    return () => {
+      mounted = false;
+      clearTimeout(handler);
+    };
+  }, [search]);
+
   const [filterDate, setFilterDate] = useState<Date | undefined>(undefined);
   const [resultsPerPage, setResultsPerPage] = useState(60);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -118,8 +128,8 @@ export default function Home() {
   // Initialize stack with empty array
   const [stack, setStack] = useState<StackItem[]>([]);
 
-  // Load from localStorage after component mounts (client-side only)
   useEffect(() => {
+    // Load from localStorage after component mounts (client-side only)
     const savedApiUrl = localStorage.getItem('mcp-registry-api-url');
     if (savedApiUrl) setApiUrl(savedApiUrl);
     const savedResultsPerPage = localStorage.getItem('mcp-registry-results-per-page');
@@ -133,10 +143,22 @@ export default function Home() {
     if (savedStack) {
       try {
         setStack(JSON.parse(savedStack));
-      } catch (e) {
-        console.error('Failed to parse saved stack:', e);
+      } catch (err) {
+        console.error('Failed to parse saved stack:', err);
       }
     }
+    // Listen to back/forward navigation and sync `search` with the URL
+    if (typeof window === 'undefined') return;
+    const onPop = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        setSearch(params.get('search') || '');
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // Save apiUrl to localStorage when it changes
@@ -163,8 +185,6 @@ export default function Home() {
       console.error('Failed to copy:', err);
     }
   };
-
-  /** Add item to stack */
   const addToStack = (serverName: string, type: 'remote' | 'package', data: any, index: number) => {
     // const stackKey = `${serverName}-${type}-${index}`;
     const existingItem = stack.find(
@@ -222,45 +242,48 @@ export default function Home() {
   };
 
   /** Fetch servers from the API */
-  const fetchServers = async (searchQuery = '', cursor: string | null = null, dateFilter?: Date) => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Build the API URL first with all parameters
-      let baseUrl = apiUrl;
-      const params = ['version=latest', `limit=${resultsPerPage}`];
-      if (searchQuery) params.push(`search=${encodeURIComponent(searchQuery)}`);
-      if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
-      if (dateFilter) {
-        // Format date as RFC3339 datetime
-        const rfc3339Date = dateFilter.toISOString();
-        params.push(`updated_since=${encodeURIComponent(rfc3339Date)}`);
+  const fetchServers = useCallback(
+    async (searchQuery = '', cursor: string | null = null, dateFilter?: Date) => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Build the API URL first with all parameters
+        let baseUrl = apiUrl;
+        const params = ['version=latest', `limit=${resultsPerPage}`];
+        if (searchQuery) params.push(`search=${encodeURIComponent(searchQuery)}`);
+        if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
+        if (dateFilter) {
+          // Format date as RFC3339 datetime
+          const rfc3339Date = dateFilter.toISOString();
+          params.push(`updated_since=${encodeURIComponent(rfc3339Date)}`);
+        }
+        if (params.length > 0) {
+          baseUrl += `?${params.join('&')}`;
+        }
+        // Then wrap it with the CORS proxy
+        const url = `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
+        console.log('Fetching URL:', url);
+        const options = {
+          method: 'GET',
+          headers: { Accept: 'application/json, application/problem+json' },
+          cache: 'force-cache' as const,
+        };
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log('Fetched data:', data);
+        setServers(data.servers || []);
+        setNextCursor(data.metadata?.nextCursor || null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
       }
-      if (params.length > 0) {
-        baseUrl += `?${params.join('&')}`;
-      }
-      // Then wrap it with the CORS proxy
-      const url = `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
-      console.log('Fetching URL:', url);
-      const options = {
-        method: 'GET',
-        headers: { Accept: 'application/json, application/problem+json' },
-        cache: 'force-cache' as const,
-      };
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      console.log('Fetched data:', data);
-      setServers(data.servers || []);
-      setNextCursor(data.metadata?.nextCursor || null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [apiUrl, resultsPerPage]
+  );
 
   // Fetch servers when search, apiUrl, filterDate, or resultsPerPage changes
   useEffect(() => {
@@ -269,13 +292,13 @@ export default function Home() {
     setNextCursor(null);
     setCurrentPage(1);
     fetchServers(search, null, filterDate);
-    // Update URL parameter
-    if (search) {
-      setSearchParams({ search });
-    } else {
-      setSearchParams({});
-    }
-  }, [search, apiUrl, filterDate, resultsPerPage]);
+    // // Update URL parameter
+    // if (search) {
+    //   setSearchParams({ search });
+    // } else {
+    //   setSearchParams({});
+    // }
+  }, [search, apiUrl, filterDate, resultsPerPage, fetchServers]);
 
   const handleNext = () => {
     if (nextCursor) {

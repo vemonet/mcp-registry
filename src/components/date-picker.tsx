@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { Filter, X } from 'lucide-react';
 
 import { Button } from '~/components/ui/button';
