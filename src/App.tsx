@@ -95,8 +95,17 @@ export default function App() {
   // Initialize apiUrl with default value
   const [apiUrl, setApiUrl] = useState('https://registry.modelcontextprotocol.io/v0/servers');
 
-  // Initialize stack with empty array
-  const [stack, setStack] = useState<StackItem[]>([]);
+  // Initialize stack from localStorage (client-side only) to avoid race
+  // where the "save" effect would run on mount and overwrite a loaded value.
+  const [stack, setStack] = useState<StackItem[]>(() => {
+    try {
+      if (typeof window === 'undefined') return [];
+      const saved = localStorage.getItem('mcp-registry-stack');
+      return saved ? (JSON.parse(saved) as StackItem[]) : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     // Load from localStorage after component mounts (client-side only)
@@ -107,14 +116,6 @@ export default function App() {
       const parsed = parseInt(savedResultsPerPage, 10);
       if (parsed >= 3 && parsed <= 100) {
         setResultsPerPage(parsed);
-      }
-    }
-    const savedStack = localStorage.getItem('mcp-registry-stack');
-    if (savedStack) {
-      try {
-        setStack(JSON.parse(savedStack));
-      } catch (err) {
-        console.error('Failed to parse saved stack:', err);
       }
     }
     // Listen to back/forward navigation and sync `search` with the URL
@@ -253,12 +254,6 @@ export default function App() {
     setNextCursor(null);
     setCurrentPage(1);
     fetchServers(search, null, filterDate);
-    // // Update URL parameter
-    // if (search) {
-    //   setSearchParams({ search });
-    // } else {
-    //   setSearchParams({});
-    // }
   }, [search, apiUrl, filterDate, resultsPerPage, fetchServers]);
 
   const handleNext = () => {
@@ -280,11 +275,10 @@ export default function App() {
     }
   };
 
-  // NOTE: For cursor-based pagination, we can't jump to arbitrary pages
-  // We can only navigate sequentially
+  // NOTE: For cursor-based pagination, we can't jump to arbitrary pages, we can only navigate sequentially
   const handleGoToPage = (page: number) => {
     if (page === 1) {
-      // Go to first page
+      // Only support first page for now
       setCurrentCursor(null);
       setPreviousCursors([]);
       setCurrentPage(1);
@@ -300,8 +294,14 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex flex-col sm:flex-row sm:h-16 items-start sm:items-center justify-between gap-3 sm:gap-0 px-4 py-3 sm:py-0 mx-auto max-w-7xl">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <img src={McpLogo} alt="Cursor" className="h-5 w-5 [filter:invert(0)] dark:[filter:invert(1)]" />
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Clear search"
+            onClick={() => setSearch('')}
+            className="flex items-center gap-2 flex-shrink-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          >
+            <img src={McpLogo} alt="MCP logo" className="h-5 w-5 [filter:invert(0)] dark:[filter:invert(1)]" />
             <h1 className="text-lg">MCP Registry</h1>
           </div>
           <div className="flex items-center gap-4 flex-1 w-full sm:w-auto justify-end max-w-2xl">
@@ -353,8 +353,9 @@ export default function App() {
                           // List servers in the stack, with remove button
                           <DropdownMenuItem
                             key={idx}
-                            className="flex items-center justify-between gap-2 p-3"
+                            className="flex items-center justify-between gap-2 p-3 cursor-pointer"
                             onSelect={(e) => e.preventDefault()}
+                            onClick={() => setSearch(item.serverName)}
                           >
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-xs truncate">{item.serverName}</div>
@@ -365,7 +366,11 @@ export default function App() {
                               </div>
                             </div>
                             <button
-                              onClick={() => removeFromStack(item.serverName, item.type, item.index)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                removeFromStack(item.serverName, item.type, item.index);
+                              }}
                               className="p-1 hover:bg-destructive/10 rounded transition-colors"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -497,7 +502,7 @@ export default function App() {
 
         {/* Loading/Error States */}
         {loading && (
-          <p className="flex items-center justify-center text-center text-muted-foreground gap-2">
+          <p className="flex mt-4 items-center justify-center text-center text-muted-foreground gap-2">
             <Spinner />
             <span>Loading servers...</span>
           </p>
