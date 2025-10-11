@@ -189,14 +189,14 @@ export default function App() {
     }
   };
 
-  /** Download config file */
-  const downloadConfig = (configType: 'vscode' | 'cursor') => {
+  /** Download `mcp.json` config file */
+  const downloadMcpJsonConfig = (configType: 'vscode' | 'cursor') => {
     const config = generateStackConfig(configType);
     const blob = new Blob([config], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = configType === 'vscode' ? 'mcp-settings.json' : 'cursor-config.json';
+    a.download = 'mcp.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -381,7 +381,7 @@ export default function App() {
                       {/* Download stack config dropdown */}
                       <div className="border-t pt-2 mt-2 space-y-1">
                         <DropdownMenuItem
-                          onClick={() => downloadConfig('vscode')}
+                          onClick={() => downloadMcpJsonConfig('vscode')}
                           className="flex items-center gap-2 cursor-pointer"
                         >
                           <Download className="h-4 w-4" />
@@ -389,7 +389,7 @@ export default function App() {
                           Download VSCode <code>mcp.json</code>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => downloadConfig('cursor')}
+                          onClick={() => downloadMcpJsonConfig('cursor')}
                           className="flex items-center gap-2 cursor-pointer"
                         >
                           <Download className="h-4 w-4" />
@@ -398,7 +398,7 @@ export default function App() {
                             alt="Cursor"
                             className="h-4 w-4 [filter:invert(0)] dark:[filter:invert(1)]"
                           />
-                          Download Cursor config
+                          Download Cursor <code>mcp.json</code>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setStack([])}
@@ -433,8 +433,13 @@ export default function App() {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>
-                    <a href="https://github.com/vemonet/mcp-registry" target="_blank" rel="noopener noreferrer">
-                      https://github.com/vemonet/mcp-registry
+                    <a
+                      href="https://github.com/vemonet/mcp-registry"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-muted-foreground"
+                    >
+                      🔗 github.com/vemonet/mcp-registry
                     </a>
                   </p>
                 </TooltipContent>
@@ -523,7 +528,12 @@ export default function App() {
                   }`}
                 >
                   {/* MCP Server card to display a server */}
-                  <ServerCard item={item} addToStack={addToStack} isInStack={isInStack} />
+                  <ServerCard
+                    item={item}
+                    addToStack={addToStack}
+                    removeFromStack={removeFromStack}
+                    isInStack={isInStack}
+                  />
                 </Card>
               ))}
             </div>

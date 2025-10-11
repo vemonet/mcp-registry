@@ -12,6 +12,7 @@ import {
   Plus,
   Container,
   Settings,
+  Delete,
 } from 'lucide-react';
 
 import {
@@ -44,10 +45,12 @@ export const ServerCard = ({
   item,
   addToStack,
   isInStack,
+  removeFromStack,
 }: {
   item: ServerItem;
   addToStack: (serverName: string, type: 'remote' | 'package', data: any, index: number) => void;
   isInStack: (serverName: string, type: 'remote' | 'package', index: number) => boolean;
+  removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => void;
 }) => {
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
@@ -83,7 +86,9 @@ export const ServerCard = ({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Status: {itemMeta.status}</p>
+                    <p>
+                      <span className="text-muted-foreground">☑️ Status:</span> {itemMeta.status}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -105,9 +110,15 @@ export const ServerCard = ({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>📅 Published at {new Date(itemMeta.publishedAt).toLocaleString('fr-FR')}</p>
+                    <p>
+                      <span className="text-muted-foreground">📅 Published at</span>{' '}
+                      {new Date(itemMeta.publishedAt).toLocaleString('fr-FR')}
+                    </p>
                     {itemMeta?.updatedAt && itemMeta.updatedAt != itemMeta.publishedAt && (
-                      <p>♻️ Updated at {new Date(itemMeta.updatedAt).toLocaleString('fr-FR')}</p>
+                      <p>
+                        <span className="text-muted-foreground">♻️ Updated at</span>{' '}
+                        {new Date(itemMeta.updatedAt).toLocaleString('fr-FR')}
+                      </p>
                     )}
                   </TooltipContent>
                 </Tooltip>
@@ -136,8 +147,13 @@ export const ServerCard = ({
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>
-                      <a target="_blank" rel="noopener noreferrer" href={item.server.repository.url}>
-                        {item.server.repository.url}
+                      <a
+                        href={item.server.repository.url}
+                        className="hover:text-muted-foreground"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        🔗 {item.server.repository.url}
                       </a>
                     </p>
                   </TooltipContent>
@@ -150,11 +166,10 @@ export const ServerCard = ({
       </CardHeader>
       {(item.server.remotes && item.server.remotes.length > 0) ||
       (item.server.packages && item.server.packages.length > 0) ? (
-        <CardContent className="pt-0 space-y-2">
+        <CardContent className="pt-0 space-y-2 space-x-2">
           {/* <ServerAccessSection server={item.server} addToStack={addToStack} isInStack={isInStack} /> */}
           {/* Packages Section */}
           {item.server.packages &&
-            item.server.packages.length > 0 &&
             item.server.packages.map(
               (pkg, pkgIndex) => {
                 // NOTE: Disabled package/remotes list wrapper, it was cluttering the UI too much
@@ -196,7 +211,12 @@ export const ServerCard = ({
                         {pkg.registryBaseUrl && (
                           <p>
                             <span className="text-muted-foreground">📘 Registry:</span>{' '}
-                            <a href={pkg.registryBaseUrl} target="_blank" rel="noopener noreferrer">
+                            <a
+                              href={pkg.registryBaseUrl}
+                              className="hover:text-muted-foreground"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
                               {pkg.registryBaseUrl}
                             </a>
                           </p>
@@ -269,12 +289,23 @@ export const ServerCard = ({
                     </Tooltip>
                     <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenuItem
-                        onClick={() => addToStack(item.server.name, 'package', pkg, pkgIndex)}
+                        onClick={() => {
+                          return isInStack(item.server.name, 'package', pkgIndex)
+                            ? removeFromStack(item.server.name, 'package', pkgIndex)
+                            : addToStack(item.server.name, 'package', pkg, pkgIndex);
+                        }}
                         className="flex items-center gap-2"
-                        disabled={isInStack(item.server.name, 'package', pkgIndex)}
+                        // disabled={isInStack(item.server.name, 'package', pkgIndex)}
                       >
-                        <Plus className="h-3.5 w-3.5" />
-                        {isInStack(item.server.name, 'package', pkgIndex) ? 'In your Stack' : 'Add to your Stack'}
+                        {isInStack(item.server.name, 'package', pkgIndex) ? (
+                          <>
+                            <Delete className="h-3.5 w-3.5" /> Remove from Stack
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-3.5 w-3.5" /> Add to your Stack
+                          </>
+                        )}
                       </DropdownMenuItem>
                       {packageUrl && (
                         <DropdownMenuItem asChild>
@@ -380,9 +411,12 @@ export const ServerCard = ({
                         ) : remote.type.includes('http') ? (
                           <Rss className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         ) : (
+                          // <Router className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           <Link2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         )}
-                        <span className="break-all font-mono text-muted-foreground">{remote.url}</span>
+                        <span className="break-all font-mono text-muted-foreground">
+                          {remote.url.replace('https://', '')}
+                        </span>
                         {remote.headers && Object.keys(remote.headers).length > 0 && (
                           <Settings className="h-3 w-3 text-blue-300 flex-shrink-0" />
                         )}
@@ -434,12 +468,22 @@ export const ServerCard = ({
                 </Tooltip>
                 <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenuItem
-                    onClick={() => addToStack(item.server.name, 'remote', remote, remoteIndex)}
+                    onClick={() => {
+                      return isInStack(item.server.name, 'remote', remoteIndex)
+                        ? removeFromStack(item.server.name, 'remote', remoteIndex)
+                        : addToStack(item.server.name, 'remote', remote, remoteIndex);
+                    }}
                     className="flex items-center gap-2"
-                    disabled={isInStack(item.server.name, 'remote', remoteIndex)}
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    {isInStack(item.server.name, 'remote', remoteIndex) ? 'In your Stack' : 'Add to your Stack'}
+                    {isInStack(item.server.name, 'remote', remoteIndex) ? (
+                      <>
+                        <Delete className="h-3.5 w-3.5" /> Remove from Stack
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5" /> Add to your Stack
+                      </>
+                    )}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => copyToClipboard(remote.url)} className="flex items-center gap-2">
                     <Copy className="h-3.5 w-3.5" />
