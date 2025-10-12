@@ -1,44 +1,74 @@
+import { Link2, CheckCircle, XCircle, Calendar, House, ChevronDown, Check } from 'lucide-react';
 import { useState } from 'react';
-import {
-  Link2,
-  Copy,
-  CheckCircle2,
-  HardDriveUpload,
-  Rss,
-  Package,
-  CheckCircle,
-  XCircle,
-  Calendar,
-  Plus,
-  Container,
-  Settings,
-  Delete,
-} from 'lucide-react';
 
-import {
-  buildIdeConfigForPkg,
-  buildIdeConfigForRemote,
-  genCursorConfigForPkg,
-  genCursorConfigForRemote,
-  genVscodeConfigForPkg,
-  genVscodeConfigForRemote,
-} from '~/lib/ide-config';
-import type { ServerItem, ServerPackage } from '~/lib/types';
+import type { ServerItem } from '~/lib/types';
 import { formatDate } from '~/lib/utils';
-import { CardHeader, CardTitle, CardDescription, CardContent } from '~/components/ui/card';
+import { CardHeader, CardTitle, CardDescription } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
-import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
   DropdownMenu,
+  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu';
-import PypiLogo from '~/components/logos/pypi-logo.svg';
-import NpmLogo from '~/components/logos/npm-logo.svg';
-import VscodeLogo from '~/components/logos/vscode-logo.svg';
-import CursorLogo from '~/components/logos/cursor-logo.svg';
+import { Spinner } from '~/components/ui/spinner';
+
+function VersionList({
+  serversData,
+  loading,
+  error,
+  currentVersion,
+  onSelect,
+}: {
+  serversData: any[] | null;
+  loading: boolean;
+  error: string | null;
+  currentVersion?: string;
+  onSelect?: (entry: any) => void;
+}) {
+  if (loading)
+    return (
+      <div className="flex items-center gap-2 p-2">
+        <Spinner />
+        <span className="text-xs text-muted-foreground">Loading versions…</span>
+      </div>
+    );
+
+  if (error) return <div className="p-2 text-xs text-destructive">Failed to load versions: {error}</div>;
+
+  if (!serversData || serversData.length === 0)
+    return <div className="p-2 text-xs text-muted-foreground">No versions found</div>;
+
+  return (
+    <div>
+      {serversData.map((entry) => {
+        const v = entry?.server?.version || entry?.version || String(entry);
+        const publishedAt = entry?._meta?.['io.modelcontextprotocol.registry/official']?.publishedAt;
+        return (
+          <DropdownMenuItem
+            key={v}
+            className="flex items-center justify-between"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect?.(entry);
+            }}
+          >
+            <div className="flex flex-col">
+              <span className="text-sm">v{v}</span>
+              {publishedAt && (
+                <span className="text-xs text-muted-foreground">{new Date(publishedAt).toLocaleDateString()}</span>
+              )}
+            </div>
+            {v === currentVersion ? <Check className="h-4 w-4 text-green-600" /> : null}
+          </DropdownMenuItem>
+        );
+      })}
+    </div>
+  );
+}
+import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import GithubLogo from '~/components/logos/github.svg';
+import { ServerEndpointsList } from './server-endpoints-list';
 
 /** Display all details on a MCP server */
 export const ServerCard = ({
@@ -46,26 +76,71 @@ export const ServerCard = ({
   addToStack,
   isInStack,
   removeFromStack,
+  registryUrl = 'https://registry.modelcontextprotocol.io/v0/servers',
 }: {
   item: ServerItem;
   addToStack: (serverName: string, type: 'remote' | 'package', data: any, index: number) => void;
   isInStack: (serverName: string, type: 'remote' | 'package', index: number) => boolean;
   removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => void;
+  registryUrl?: string;
 }) => {
-  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<any | null>(null);
+  const [serversData, setServersData] = useState<any[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const copyToClipboard = async (text: string) => {
+  const fetchVersions = async () => {
+    // avoid refetching if we already have data or are loading
+    if (loading || serversData) return;
+    setLoading(true);
+    setError(null);
     try {
-      await navigator.clipboard.writeText(text);
-      setCopiedUrl(text);
-      setTimeout(() => setCopiedUrl(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+      const url = `${registryUrl}/${encodeURIComponent(item.server.name)}/versions`;
+      // Then wrap it with the CORS proxy
+      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+      console.log('Fetching URL:', url);
+      const res = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json, application/problem+json' },
+        cache: 'force-cache' as const,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      console.log('Fetched versions for', item.server.name, data);
+      let servers: any[] = [];
+      if (data && Array.isArray((data as any).servers)) {
+        servers = (data as any).servers;
+      } else if (Array.isArray(data)) {
+        servers = data;
+      } else {
+        for (const k of Object.keys(data || {})) {
+          const v = (data as any)[k];
+          if (Array.isArray(v)) {
+            servers = v;
+            break;
+          }
+        }
+      }
+      setServersData(servers);
+    } catch (err: any) {
+      setError(err?.message || String(err));
+    } finally {
+      setLoading(false);
     }
   };
 
-  const itemMeta = item._meta?.['io.modelcontextprotocol.registry/official'];
-
+  // The displayed server info should prefer the selected entry (by version) if present.
+  // Versions in the API can be returned as objects where the version sits either on
+  // `entry.server.version` (preferred) or at `entry.version` (legacy). Normalize
+  // both shapes into `displayedServer` so the UI consistently shows the selected
+  // version, repo, website and metadata.
+  const displayedServer = selectedEntry
+    ? selectedEntry.server || { ...item.server, version: selectedEntry.version }
+    : item.server;
+  const displayedMeta =
+    selectedEntry?._meta?.['io.modelcontextprotocol.registry/official'] ||
+    item._meta?.['io.modelcontextprotocol.registry/official'];
+  const itemMeta = displayedMeta;
   return (
     <>
       <CardHeader>
@@ -92,11 +167,38 @@ export const ServerCard = ({
                   </TooltipContent>
                 </Tooltip>
               )}
-              {/* Version badge */}
-              {item.server.version && (
-                <Badge variant="secondary" className="text-xs text-muted-foreground">
-                  v{item.server.version}
-                </Badge>
+              {/* Version dropdown (fetch versions when opened) */}
+              {displayedServer.version && (
+                <DropdownMenu onOpenChange={(open) => open && fetchVersions()}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1"
+                      onClick={(e) => {
+                        // Prevent card-level click handlers from firing
+                        e.stopPropagation();
+                      }}
+                      aria-label={`Versions for ${item.server.name}`}
+                    >
+                      <Badge
+                        variant="outline"
+                        className="text-xs text-muted-foreground bg-muted hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:cursor-pointer flex items-center gap-1"
+                      >
+                        v{displayedServer.version}
+                        <ChevronDown className="h-3 w-3" />
+                      </Badge>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-44 p-1">
+                    <VersionList
+                      serversData={serversData}
+                      loading={loading}
+                      error={error}
+                      currentVersion={displayedServer.version}
+                      onSelect={(entry) => setSelectedEntry(entry)}
+                    />
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               {/* Date information */}
               {itemMeta?.publishedAt && (
@@ -124,17 +226,17 @@ export const ServerCard = ({
                 </Tooltip>
               )}
               {/* Repository/Source Code Link */}
-              {item.server.repository?.url && (
+              {displayedServer.repository?.url && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <a
-                      href={item.server.repository.url}
+                      href={displayedServer.repository.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-shrink-0 p-1 rounded-md hover:bg-accent transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {item.server.repository.source === 'github' ? (
+                      {displayedServer.repository?.source === 'github' ? (
                         <img
                           src={GithubLogo}
                           alt="GitHub"
@@ -148,430 +250,78 @@ export const ServerCard = ({
                   <TooltipContent>
                     <p>
                       <a
-                        href={item.server.repository.url}
+                        href={displayedServer.repository?.url}
                         className="hover:text-muted-foreground"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        🔗 {item.server.repository.url}
+                        🔗 {displayedServer.repository?.url}
+                      </a>
+                    </p>
+                    {displayedServer.repository?.subfolder && (
+                      <p>
+                        📂 Subfolder: <code>{displayedServer.repository.subfolder}</code>
+                      </p>
+                    )}
+                    {displayedServer.repository?.id && (
+                      <p>
+                        🪪 ID: <code>{displayedServer.repository.id}</code>
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {/* Website URL */}
+              {displayedServer.websiteUrl && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a
+                      href={displayedServer.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <House className="h-4 w-4" />
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      <a
+                        href={displayedServer.websiteUrl}
+                        className="hover:text-muted-foreground"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        🔗 {displayedServer.websiteUrl}
                       </a>
                     </p>
                   </TooltipContent>
                 </Tooltip>
               )}
             </div>
-            <CardDescription className="mt-2">{item.server.description}</CardDescription>
+            <CardDescription className="mt-2">{displayedServer.description}</CardDescription>
           </div>
         </div>
       </CardHeader>
-      {(item.server.remotes && item.server.remotes.length > 0) ||
-      (item.server.packages && item.server.packages.length > 0) ? (
-        <CardContent className="pt-0 space-y-2 space-x-2">
-          {/* <ServerAccessSection server={item.server} addToStack={addToStack} isInStack={isInStack} /> */}
-          {/* Packages Section */}
-          {item.server.packages &&
-            item.server.packages.map(
-              (pkg, pkgIndex) => {
-                // NOTE: Disabled package/remotes list wrapper, it was cluttering the UI too much
-                // <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-md border border-muted">
-                //   <Tooltip>
-                //     <TooltipTrigger asChild>
-                //       <div className="inline-flex items-center">
-                //         <Package className="h-4 w-4 text-muted-foreground" />
-                //       </div>
-                //     </TooltipTrigger>
-                //     <TooltipContent>
-                //       <p>Packages</p>
-                //     </TooltipContent>
-                //   </Tooltip>
-                // {/* Get package URL */}
-                const packageUrl = getPkgUrl(pkg);
-                return (
-                  <DropdownMenu key={pkgIndex}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-muted hover:bg-muted/30 border border-border rounded-md transition-colors cursor-pointer"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {getPkgIcon(pkg)}
-                            <span className="font-mono text-muted-foreground">{pkg.identifier}</span>
-                            {pkg.environmentVariables && Object.keys(pkg.environmentVariables).length > 0 && (
-                              <Settings className="h-3 w-3 text-blue-300 flex-shrink-0" />
-                            )}
-                          </button>
-                        </DropdownMenuTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {/* Tooltip of package */}
-                        <p>
-                          <span className="text-muted-foreground">📦 Type:</span> <code>{pkg.registryType}</code>
-                        </p>
-                        {pkg.registryBaseUrl && (
-                          <p>
-                            <span className="text-muted-foreground">📘 Registry:</span>{' '}
-                            <a
-                              href={pkg.registryBaseUrl}
-                              className="hover:text-muted-foreground"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              {pkg.registryBaseUrl}
-                            </a>
-                          </p>
-                        )}
-                        <p>
-                          <span className="text-muted-foreground">🏷️ Version:</span> <code>{pkg.version}</code>
-                        </p>
-                        {pkg.runtimeHint && (
-                          <p>
-                            <span className="text-muted-foreground">💡 Runtime Hint:</span>{' '}
-                            <code>{pkg.runtimeHint}</code>
-                          </p>
-                        )}
-                        {pkg.environmentVariables && pkg.environmentVariables.length > 0 && (
-                          <div className="mt-2">
-                            <span className="text-muted-foreground">⚙️ Environment Variables:</span>
-                            <div className="mt-1 space-y-1">
-                              {pkg.environmentVariables.map((envVar) => (
-                                <div key={envVar.name} className="text-xs">
-                                  <div className="flex items-center gap-1">
-                                    <code>{envVar.name}</code>
-                                    {envVar.isRequired && <span className="text-red-500 text-xs">*</span>}
-                                    {envVar.isSecret && <span className="text-orange-500 text-xs">🔒</span>}
-                                  </div>
-                                  {envVar.description && (
-                                    <div className="text-muted-foreground ml-2">{envVar.description}</div>
-                                  )}
-                                  {envVar.default && (
-                                    <div className="text-muted-foreground ml-2">
-                                      Default: <code>{envVar.default}</code>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {pkg.runtimeArguments && pkg.runtimeArguments.length > 0 && (
-                          <div className="mt-2">
-                            <span className="text-muted-foreground">⚡ Runtime Arguments:</span>
-                            <div className="mt-1 space-y-1">
-                              {pkg.runtimeArguments.map((arg, argIndex) => (
-                                <div key={argIndex} className="text-xs">
-                                  <div className="flex items-center gap-1">
-                                    {arg.type === 'named' ? (
-                                      <>
-                                        <code className="ml-2">{arg.name}</code>
-                                        <Badge variant="outline" className="text-xs px-1 py-0">
-                                          named
-                                        </Badge>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <code className="ml-2">{arg.value}</code>
-                                        <Badge variant="outline" className="text-xs px-1 py-0">
-                                          positional
-                                        </Badge>
-                                      </>
-                                    )}
-                                    {arg.description && (
-                                      <span className="text-muted-foreground ml-2">{arg.description}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </TooltipContent>
-                    </Tooltip>
-                    <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          return isInStack(item.server.name, 'package', pkgIndex)
-                            ? removeFromStack(item.server.name, 'package', pkgIndex)
-                            : addToStack(item.server.name, 'package', pkg, pkgIndex);
-                        }}
-                        className="flex items-center gap-2"
-                        // disabled={isInStack(item.server.name, 'package', pkgIndex)}
-                      >
-                        {isInStack(item.server.name, 'package', pkgIndex) ? (
-                          <>
-                            <Delete className="h-3.5 w-3.5" /> Remove from Stack
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-3.5 w-3.5" /> Add to your Stack
-                          </>
-                        )}
-                      </DropdownMenuItem>
-                      {packageUrl && (
-                        <DropdownMenuItem asChild>
-                          <a
-                            href={packageUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2"
-                          >
-                            <Link2 className="h-3.5 w-3.5" />
-                            View Package
-                          </a>
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => copyToClipboard(pkg.identifier)}
-                        className="flex items-center gap-2"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy Package Name
-                      </DropdownMenuItem>
-                      {/* https://code.visualstudio.com/api/extension-guides/ai/mcp#create-an-mcp-installation-url */}
-                      <DropdownMenuItem asChild>
-                        <a
-                          href={`vscode:mcp/install?${encodeURIComponent(
-                            JSON.stringify({
-                              name: item.server.name,
-                              ...buildIdeConfigForPkg(item.server.name, pkg)[item.server.name],
-                            })
-                          )}`}
-                          className="flex items-center gap-2"
-                        >
-                          <img src={VscodeLogo} alt="VSCode" className="h-3.5 w-3.5" />
-                          Install in VSCode
-                        </a>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => copyToClipboard(genVscodeConfigForPkg(item.server.name, pkg))}
-                        className="flex items-center gap-2"
-                      >
-                        <img src={VscodeLogo} alt="Cursor" className="h-3.5 w-3.5" />
-                        Copy VSCode config
-                      </DropdownMenuItem>
-                      {/* https://cursor.com/docs/context/mcp/install-links */}
-                      <DropdownMenuItem asChild>
-                        <a
-                          href={`cursor://anysphere.cursor-deeplink/mcp/install?name=${item.server.name}&config=${encodeURIComponent(JSON.stringify(buildIdeConfigForPkg(item.server.name, pkg)[item.server.name]))}`}
-                          className="flex items-center gap-2"
-                        >
-                          <img
-                            src={CursorLogo}
-                            alt="Cursor"
-                            className="h-3.5 w-3.5 [filter:invert(0)] dark:[filter:invert(1)]"
-                          />
-                          Install in Cursor
-                        </a>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => copyToClipboard(genCursorConfigForPkg(item.server.name, pkg))}
-                        className="flex items-center gap-2"
-                      >
-                        <img
-                          src={CursorLogo}
-                          alt="Cursor"
-                          className="h-3.5 w-3.5 [filter:invert(0)] dark:[filter:invert(1)]"
-                        />
-                        Copy Cursor config
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                );
-              }
-              // )}
-              // // </div>
-            )}
+      {(() => {
+        // Create a displayedItem that uses the selected version's server and metadata
+        const displayedItem = {
+          ...item,
+          server: displayedServer,
+          _meta: { ...(item._meta || {}), ['io.modelcontextprotocol.registry/official']: itemMeta },
+        } as ServerItem;
 
-          {/* Remote Servers Section */}
-          {item.server.remotes &&
-            item.server.remotes.length > 0 &&
-            item.server.remotes.map((remote, remoteIndex) => (
-              // <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-md border border-muted">
-              //   <Tooltip>
-              //     <TooltipTrigger asChild>
-              //       <div className="inline-flex items-center">
-              //         <Plug className="h-4 w-4 text-muted-foreground" />
-              //       </div>
-              //     </TooltipTrigger>
-              //     <TooltipContent>
-              //       <p>Remote Servers</p>
-              //     </TooltipContent>
-              //   </Tooltip>
-              // {item.server.remotes.map((remote, remoteIndex) => (
-              <DropdownMenu key={remoteIndex}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="group relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-muted hover:bg-muted/30 border border-border rounded-md transition-colors cursor-pointer"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {remote.type === 'sse' ? (
-                          <HardDriveUpload className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        ) : remote.type.includes('http') ? (
-                          <Rss className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        ) : (
-                          // <Router className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <Link2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        )}
-                        <span className="break-all font-mono text-muted-foreground">
-                          {remote.url.replace('https://', '')}
-                        </span>
-                        {remote.headers && Object.keys(remote.headers).length > 0 && (
-                          <Settings className="h-3 w-3 text-blue-300 flex-shrink-0" />
-                        )}
-                        {copiedUrl === remote.url && <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />}
-                      </button>
-                    </DropdownMenuTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-md">
-                    {/* Tooltip to display remote server details */}
-                    <div className="space-y-2">
-                      <p>
-                        <span className="text-muted-foreground">🚛 Transport:</span> <code>{remote.type}</code>
-                      </p>
-                      {remote.headers && (
-                        <div>
-                          <span className="text-muted-foreground">⚙️ Headers:</span>
-                          <div className="mt-1 space-y-1">
-                            {Object.entries(remote.headers).map(([key, header]) => (
-                              <div key={key} className="text-xs">
-                                <div className="flex items-center gap-1">
-                                  <code>{typeof header === 'string' ? key : header.name}</code>
-                                  {typeof header === 'object' && header.isRequired && (
-                                    <span className="text-red-500 text-xs">*</span>
-                                  )}
-                                  {typeof header === 'object' && header.isSecret && (
-                                    <span className="text-orange-500 text-xs">🔒</span>
-                                  )}
-                                </div>
-                                {typeof header === 'object' && header.description && (
-                                  <div className="text-muted-foreground ml-2">{header.description}</div>
-                                )}
-                                {typeof header === 'object' && header.default && (
-                                  <div className="text-muted-foreground ml-2">
-                                    Default: <code>{header.default}</code>
-                                  </div>
-                                )}
-                                {typeof header === 'string' && (
-                                  <div className="text-muted-foreground ml-2">
-                                    <code>{header}</code>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      return isInStack(item.server.name, 'remote', remoteIndex)
-                        ? removeFromStack(item.server.name, 'remote', remoteIndex)
-                        : addToStack(item.server.name, 'remote', remote, remoteIndex);
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    {isInStack(item.server.name, 'remote', remoteIndex) ? (
-                      <>
-                        <Delete className="h-3.5 w-3.5" /> Remove from Stack
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-3.5 w-3.5" /> Add to your Stack
-                      </>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => copyToClipboard(remote.url)} className="flex items-center gap-2">
-                    <Copy className="h-3.5 w-3.5" />
-                    Copy Server URL
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={`vscode:mcp/install?${encodeURIComponent(
-                        JSON.stringify({
-                          name: item.server.name,
-                          ...buildIdeConfigForRemote(item.server.name, remote)[item.server.name],
-                        })
-                      )}`}
-                      className="flex items-center gap-2"
-                    >
-                      <img src={VscodeLogo} alt="VSCode" className="h-3.5 w-3.5" />
-                      Install in VSCode
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => copyToClipboard(genVscodeConfigForRemote(item.server.name, remote))}
-                    className="flex items-center gap-2"
-                  >
-                    <img src={VscodeLogo} alt="VSCode" className="h-3.5 w-3.5" />
-                    Copy VSCode config
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={`cursor://anysphere.cursor-deeplink/mcp/install?name=${item.server.name}&config=${encodeURIComponent(JSON.stringify(buildIdeConfigForRemote(item.server.name, remote)[item.server.name]))}`}
-                      className="flex items-center gap-2"
-                    >
-                      <img
-                        src={CursorLogo}
-                        alt="Cursor"
-                        className="h-3.5 w-3.5 [filter:invert(0)] dark:[filter:invert(1)]"
-                      />
-                      Install in Cursor
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => copyToClipboard(genCursorConfigForRemote(item.server.name, remote))}
-                    className="flex items-center gap-2"
-                  >
-                    <img
-                      src={CursorLogo}
-                      alt="Cursor"
-                      className="h-3.5 w-3.5 [filter:invert(0)] dark:[filter:invert(1)]"
-                    />
-                    Copy Cursor config
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              // )}
-              // // </div>
-            ))}
-        </CardContent>
-      ) : null}
+        return (displayedServer.remotes && displayedServer.remotes.length > 0) ||
+          (displayedServer.packages && displayedServer.packages.length > 0) ? (
+          <ServerEndpointsList
+            item={displayedItem}
+            addToStack={addToStack}
+            removeFromStack={removeFromStack}
+            isInStack={isInStack}
+          />
+        ) : null;
+      })()}
     </>
   );
-};
-
-/** Get icon for package registry */
-const getPkgIcon = (pkg: ServerPackage) => {
-  if (pkg.registryType === 'npm') {
-    return <img src={NpmLogo} alt="NPM" className="h-4 w-4" style={{ filter: 'grayscale(40%)' }} />;
-  } else if (pkg.registryType === 'pypi') {
-    return <img src={PypiLogo} alt="PyPI" className="h-4 w-4" style={{ filter: 'grayscale(40%)' }} />;
-  } else if (pkg.registryType === 'oci' || pkg.registryType === 'docker') {
-    return <Container className="h-4 w-4 text-muted-foreground" />;
-  } else {
-    return <Package className="h-4 w-4 text-muted-foreground" />;
-  }
-};
-
-/** Get URL to view the package in its registry */
-const getPkgUrl = (pkg: ServerPackage) => {
-  const registryUrl = pkg.registryBaseUrl
-    ? pkg.registryBaseUrl
-    : pkg.registryType === 'npm'
-      ? 'https://registry.npmjs.com'
-      : pkg.registryType === 'pypi'
-        ? 'https://pypi.org'
-        : 'https://docker.io';
-  return pkg.registryType === 'npm'
-    ? `${registryUrl}/package/${pkg.identifier}`
-    : pkg.registryType === 'pypi'
-      ? `${registryUrl}/project/${pkg.identifier}/`
-      : pkg.registryType === 'oci' && registryUrl.startsWith('https://docker.io')
-        ? `https://hub.docker.com/r/${pkg.identifier}`
-        : `${registryUrl}/${pkg.identifier}`;
 };

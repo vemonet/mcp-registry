@@ -12,7 +12,6 @@ import {
   PaginationLink,
   PaginationPrevious,
   PaginationNext,
-  PaginationEllipsis,
 } from '~/components/ui/pagination';
 import {
   DropdownMenu,
@@ -38,6 +37,7 @@ import { Spinner } from './components/ui/spinner';
 // Many packages and remotes:
 // co.pipeboard/meta-ads-mcp (1)
 // com.driflyte/driflyte-mcp-server
+// With websiteUrl: com.epidemicsound/mcp-server
 
 // Empty packages: com.falkordb/QueryWeaver
 
@@ -91,9 +91,11 @@ export default function App() {
   const [currentCursor, setCurrentCursor] = useState<string | null>(null);
   const [previousCursors, setPreviousCursors] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  // Map page number -> cursor needed to fetch that page (page 1 => null)
+  const [pageCursors, setPageCursors] = useState<Record<number, string | null>>({ 1: null });
 
   // Initialize apiUrl with default value
-  const [apiUrl, setApiUrl] = useState('https://registry.modelcontextprotocol.io/v0/servers');
+  const [registryUrl, setRegistryUrl] = useState('https://registry.modelcontextprotocol.io/v0/servers');
 
   // Initialize stack from localStorage (client-side only) to avoid race
   // where the "save" effect would run on mount and overwrite a loaded value.
@@ -110,7 +112,7 @@ export default function App() {
   useEffect(() => {
     // Load from localStorage after component mounts (client-side only)
     const savedApiUrl = localStorage.getItem('mcp-registry-api-url');
-    if (savedApiUrl) setApiUrl(savedApiUrl);
+    if (savedApiUrl) setRegistryUrl(savedApiUrl);
     const savedResultsPerPage = localStorage.getItem('mcp-registry-results-per-page');
     if (savedResultsPerPage) {
       const parsed = parseInt(savedResultsPerPage, 10);
@@ -134,8 +136,8 @@ export default function App() {
 
   // Save apiUrl to localStorage when it changes
   useEffect(() => {
-    localStorage.setItem('mcp-registry-api-url', apiUrl);
-  }, [apiUrl]);
+    localStorage.setItem('mcp-registry-api-url', registryUrl);
+  }, [registryUrl]);
 
   // Save resultsPerPage to localStorage when it changes
   useEffect(() => {
@@ -210,7 +212,7 @@ export default function App() {
       setError(null);
       try {
         // Build the API URL first with all parameters
-        let baseUrl = apiUrl;
+        let baseUrl = registryUrl;
         const params = ['version=latest', `limit=${resultsPerPage}`];
         if (searchQuery) params.push(`search=${encodeURIComponent(searchQuery)}`);
         if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
@@ -223,17 +225,14 @@ export default function App() {
           baseUrl += `?${params.join('&')}`;
         }
         // Then wrap it with the CORS proxy
-        const url = `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
-        console.log('Fetching URL:', url);
-        const options = {
+        const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(baseUrl)}`;
+        console.log('Fetching URL:', proxyUrl);
+        const response = await fetch(proxyUrl, {
           method: 'GET',
           headers: { Accept: 'application/json, application/problem+json' },
           cache: 'force-cache' as const,
-        };
-        const response = await fetch(url, options);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         console.log('Fetched data:', data);
         setServers(data.servers || []);
@@ -244,7 +243,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [apiUrl, resultsPerPage]
+    [registryUrl, resultsPerPage]
   );
 
   // Fetch servers when search, apiUrl, filterDate, or resultsPerPage changes
@@ -253,11 +252,15 @@ export default function App() {
     setPreviousCursors([]);
     setNextCursor(null);
     setCurrentPage(1);
+    // Reset page cursor map for the new search / filters / settings.
+    setPageCursors({ 1: null });
     fetchServers(search, null, filterDate);
-  }, [search, apiUrl, filterDate, resultsPerPage, fetchServers]);
+  }, [search, registryUrl, filterDate, resultsPerPage, fetchServers]);
 
   const handleNext = () => {
     if (nextCursor) {
+      // Store the cursor for the next page so we can jump back to it later
+      setPageCursors((prev) => ({ ...prev, [currentPage + 1]: nextCursor }));
       setPreviousCursors((prev) => [...prev, currentCursor || '']);
       setCurrentCursor(nextCursor);
       setCurrentPage((prev) => prev + 1);
@@ -277,17 +280,47 @@ export default function App() {
 
   // NOTE: For cursor-based pagination, we can't jump to arbitrary pages, we can only navigate sequentially
   const handleGoToPage = (page: number) => {
+    if (page === currentPage) return;
+
+    // If user requests page 1, reset to initial state
     if (page === 1) {
-      // Only support first page for now
       setCurrentCursor(null);
       setPreviousCursors([]);
       setCurrentPage(1);
       fetchServers(search, null, filterDate);
+      return;
+    }
+
+    // If we have stored the cursor for the requested page, use it
+    const cursorForPage = pageCursors[page];
+    if (typeof cursorForPage !== 'undefined') {
+      // Rebuild the previousCursors array up to (but not including) the target page
+      const newPrevious: string[] = [];
+      for (let p = 1; p < page; p++) {
+        const c = pageCursors[p];
+        newPrevious.push(c === null || typeof c === 'undefined' ? '' : c);
+      }
+      setPreviousCursors(newPrevious.slice(0, -1));
+      setCurrentCursor(cursorForPage);
+      setCurrentPage(page);
+      fetchServers(search, cursorForPage, filterDate);
+      return;
+    }
+
+    // If the requested page is the immediate next one and we have a nextCursor, fall back to sequential navigation
+    if (page === currentPage + 1 && nextCursor) {
+      handleNext();
     }
   };
 
   const hasPrevious = previousCursors.length > 0;
   const hasNext = nextCursor !== null;
+
+  // Compute list of visited pages (for which we stored cursors)
+  const visitedPages = Object.keys(pageCursors)
+    .map((k) => parseInt(k, 10))
+    .sort((a, b) => a - b);
+  const lastVisitedPage = visitedPages.length ? visitedPages[visitedPages.length - 1] : 1;
 
   return (
     <div className="min-h-screen bg-background">
@@ -312,9 +345,9 @@ export default function App() {
                   <Unplug className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <input
                     type="text"
-                    placeholder="API URL"
-                    value={apiUrl}
-                    onChange={(e) => setApiUrl(e.target.value)}
+                    placeholder="Registry API URL"
+                    value={registryUrl}
+                    onChange={(e) => setRegistryUrl(e.target.value)}
                     className="flex-1 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   />
                 </div>
@@ -340,7 +373,7 @@ export default function App() {
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Stack ({stack.length} items)</p>
+                    <p>Stack of {stack.length} MCP servers</p>
                   </TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent align="end" className="w-80">
@@ -460,7 +493,7 @@ export default function App() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search MCP servers by name..."
+                  placeholder="Search MCP servers by name"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-10 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -523,13 +556,14 @@ export default function App() {
                   key={`${item.server.name}-${index}`}
                   className={`hover:shadow-lg transition-shadow ${
                     serverHasItemsInStack(item.server.name)
-                      ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900'
+                      ? 'bg-green-100 dark:bg-green-950/40 border-green-200 dark:border-green-900'
                       : ''
                   }`}
                 >
                   {/* MCP Server card to display a server */}
                   <ServerCard
                     item={item}
+                    registryUrl={registryUrl}
                     addToStack={addToStack}
                     removeFromStack={removeFromStack}
                     isInStack={isInStack}
@@ -539,7 +573,7 @@ export default function App() {
             </div>
 
             {/* Pagination */}
-            {(hasPrevious || hasNext) && (
+            {(hasPrevious || hasNext || lastVisitedPage > 1) && (
               <Pagination className="mt-8">
                 <PaginationContent>
                   <PaginationItem>
@@ -548,44 +582,29 @@ export default function App() {
                       className={!hasPrevious ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                     />
                   </PaginationItem>
-                  {/* First page */}
-                  {currentPage > 1 && (
+
+                  {/* Render visited page numbers (we only allow jumping to pages we have a cursor for) */}
+                  {Array.from({ length: lastVisitedPage }, (_, i) => i + 1).map((pageNum) => (
+                    <PaginationItem key={pageNum}>
+                      <PaginationLink
+                        onClick={() => handleGoToPage(pageNum)}
+                        className={pageNum === currentPage ? 'pointer-events-none' : 'cursor-pointer'}
+                        isActive={pageNum === currentPage}
+                      >
+                        {pageNum}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+
+                  {/* If there's a next page that we haven't stored yet, show the next page number and allow sequential next */}
+                  {hasNext && !pageCursors[lastVisitedPage + 1] && (
                     <PaginationItem>
-                      <PaginationLink onClick={() => handleGoToPage(1)} className="cursor-pointer">
-                        1
+                      <PaginationLink onClick={handleNext} className="cursor-pointer">
+                        {lastVisitedPage + 1}
                       </PaginationLink>
                     </PaginationItem>
                   )}
-                  {/* Ellipsis before current page range */}
-                  {currentPage > 3 && (
-                    <PaginationItem>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  )}
-                  {/* Previous page */}
-                  {currentPage > 2 && (
-                    <PaginationItem>
-                      <PaginationLink className="pointer-events-none opacity-50">{currentPage - 1}</PaginationLink>
-                    </PaginationItem>
-                  )}
-                  {/* Current page */}
-                  <PaginationItem>
-                    <PaginationLink isActive className="pointer-events-none">
-                      {currentPage}
-                    </PaginationLink>
-                  </PaginationItem>
-                  {/* Next page indicator (if there is a next page) */}
-                  {hasNext && (
-                    <PaginationItem>
-                      <PaginationLink className="pointer-events-none opacity-50">{currentPage + 1}</PaginationLink>
-                    </PaginationItem>
-                  )}
-                  {/* Ellipsis after current page (if there's more) */}
-                  {hasNext && (
-                    <PaginationItem>
-                      <PaginationEllipsis />
-                    </PaginationItem>
-                  )}
+
                   <PaginationItem>
                     <PaginationNext
                       onClick={handleNext}

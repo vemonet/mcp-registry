@@ -1,24 +1,16 @@
 import { BookPlus, Search, Unplug, CheckCircle, Server, Info, TriangleAlert } from 'lucide-react';
 
 import { Button } from '~/components/ui/button';
-import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import { Popover, PopoverTrigger, PopoverContent } from '~/components/ui/popover';
 
 export const AboutPopup = () => {
   return (
     <Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-              <Info className="h-5 w-5" />
-            </Button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>About</p>
-        </TooltipContent>
-      </Tooltip>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+          <Info className="h-5 w-5" />
+        </Button>
+      </PopoverTrigger>
       <PopoverContent align="end" className="w-96">
         <div className="space-y-4">
           <h3 className="font-semibold text-lg">About the MCP Registry UI</h3>

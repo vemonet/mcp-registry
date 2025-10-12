@@ -33,7 +33,7 @@ export function DatePicker({ date, onDateChange, variant = 'outline', className 
       <PopoverContent align="end" className="w-auto p-4">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-sm">Updated Since</h4>
+            <h4 className="font-semibold text-sm">Updated since</h4>
             {date && (
               <Button variant="ghost" size="sm" onClick={() => onDateChange?.(undefined)} className="h-auto p-1">
                 <X className="h-4 w-4" />
