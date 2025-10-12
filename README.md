@@ -8,7 +8,7 @@ This web app lets you find available MCP servers, and easily install them into c
 
 - 🌍 Access all MCP servers published to the official MCP registry
 - 🔎 Search by server name, and filter by last published date
-- 🏷️ Browse published versions of a server
+- 🏷️ Browse the published versions of a server
 - 📥 Install MCP servers into compatible clients in 1 click (VSCode and Cursor)
 - 🧩 Build a stack from selected MCP servers, and export to VSCode `mcp.json`, or Cursor config formats
 - 🦊 Runs entirely in the browser, and fetches data directly from [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/docs)
@@ -92,13 +92,5 @@ npm run build
 > If you're familiar with deploying Node applications, the built-in app server is production-ready. Deploy the `dist` folder.
 
 ## ✅ To do
-
-- [ ] Improve the page system: per search store the pointer to access each page (apart for 1)
-
-  Cursor is the last of the previous page
-
-  ```
-  cursor=ai.smithery%2Faicastle-school-openai-api-agent-project
-  ```
 
 - [ ] Improve filtering: filter by status and server type (stdio, http, sse). Would require new features on the registry API, or handling filters on the client.

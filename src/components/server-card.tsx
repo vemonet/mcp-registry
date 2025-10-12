@@ -173,7 +173,7 @@ export const ServerCard = ({
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="flex items-center gap-1"
+                      className="flex items-center"
                       onClick={(e) => {
                         // Prevent card-level click handlers from firing
                         e.stopPropagation();

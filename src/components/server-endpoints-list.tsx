@@ -37,254 +37,216 @@ export const ServerEndpointsList = ({
     <CardContent className="pt-0 space-y-2 space-x-2 text-center">
       {/* Packages Section */}
       {item.server.packages &&
-        item.server.packages.map(
-          (pkg, pkgIndex) => {
-            // NOTE: Disabled package/remotes list wrapper, it was cluttering the UI too much
-            // <div className="flex flex-wrap gap-2 p-2 bg-muted/70 rounded-md border border-muted">
-            //   <Tooltip>
-            //     <TooltipTrigger asChild>
-            //       <div className="inline-flex items-center">
-            //         <Package className="h-4 w-4 text-muted-foreground" />
-            //       </div>
-            //     </TooltipTrigger>
-            //     <TooltipContent>
-            //       <p>Packages</p>
-            //     </TooltipContent>
-            //   </Tooltip>
-            // {/* Get package URL */}
-            const packageUrl = getPkgUrl(pkg);
-            return (
-              <Popover key={pkgIndex}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    // className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-muted hover:bg-muted/30 border border-border rounded-md transition-colors cursor-pointer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {getPkgIcon(pkg)}
-                    <span className="font-mono text-muted-foreground">{pkg.identifier}</span>
-                    {pkg.environmentVariables && Object.keys(pkg.environmentVariables).length > 0 && (
-                      <Settings className="text-slate-400 flex-shrink-0" />
+        item.server.packages.map((pkg, pkgIndex) => {
+          // {/* Get package URL */}
+          const packageUrl = getPkgUrl(pkg);
+          return (
+            <Popover key={pkgIndex}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs hover:cursor-default"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {getPkgIcon(pkg)}
+                  <span className="font-mono text-muted-foreground">{pkg.identifier}</span>
+                  {pkg.environmentVariables && Object.keys(pkg.environmentVariables).length > 0 && (
+                    <Settings className="text-slate-400 flex-shrink-0" />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-fit text-sm" onClick={(e) => e.stopPropagation()}>
+                {/* Package details */}
+                <div>
+                  <div className="flex gap-2 justify-center mb-3 font-mono text-lg">
+                    {packageUrl ? (
+                      <a
+                        href={packageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex gap-2 items-center hover:text-muted-foreground"
+                      >
+                        {getPkgIcon(pkg)}
+                        <code className="px-2">{pkg.identifier}</code>
+                      </a>
+                    ) : (
+                      <span>
+                        {getPkgIcon(pkg)} <code>{pkg.identifier}</code>
+                      </span>
                     )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-fit text-sm" onClick={(e) => e.stopPropagation()}>
-                  {/* Package details */}
-                  <div>
-                    <div className="flex gap-2 justify-center mb-3 font-mono text-lg">
-                      {packageUrl ? (
-                        <a
-                          href={packageUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex gap-2 items-center hover:text-muted-foreground"
-                        >
-                          {getPkgIcon(pkg)}
-                          <code className="px-2">{pkg.identifier}</code>
-                        </a>
-                      ) : (
-                        <span>
-                          {getPkgIcon(pkg)} <code>{pkg.identifier}</code>
-                        </span>
-                      )}
 
-                      <CopyButton content={pkg.identifier} variant="outline" size="sm" />
-                    </div>
+                    <CopyButton content={pkg.identifier} variant="outline" size="sm" />
+                  </div>
+                  <p>
+                    <span className="text-muted-foreground">📦 Type:</span> <code>{pkg.registryType}</code>
+                  </p>
+                  {pkg.registryBaseUrl && (
                     <p>
-                      <span className="text-muted-foreground">📦 Type:</span> <code>{pkg.registryType}</code>
+                      <span className="text-muted-foreground">📘 Registry:</span>{' '}
+                      <a
+                        href={pkg.registryBaseUrl}
+                        className="hover:text-muted-foreground"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {pkg.registryBaseUrl}
+                      </a>
                     </p>
-                    {pkg.registryBaseUrl && (
-                      <p>
-                        <span className="text-muted-foreground">📘 Registry:</span>{' '}
-                        <a
-                          href={pkg.registryBaseUrl}
-                          className="hover:text-muted-foreground"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {pkg.registryBaseUrl}
-                        </a>
-                      </p>
-                    )}
+                  )}
+                  <p>
+                    <span className="text-muted-foreground">🏷️ Version:</span> <code>{pkg.version}</code>
+                  </p>
+                  {pkg.runtimeHint && (
                     <p>
-                      <span className="text-muted-foreground">🏷️ Version:</span> <code>{pkg.version}</code>
+                      <span className="text-muted-foreground">💡 Runtime hint:</span> <code>{pkg.runtimeHint}</code>
                     </p>
-                    {pkg.runtimeHint && (
-                      <p>
-                        <span className="text-muted-foreground">💡 Runtime hint:</span> <code>{pkg.runtimeHint}</code>
-                      </p>
-                    )}
-                    {pkg.environmentVariables && pkg.environmentVariables.length > 0 && (
-                      <div className="mt-2">
-                        <span className="text-muted-foreground">⚙️ Environment Variables:</span>
-                        <div className="mt-1 space-y-1">
-                          {pkg.environmentVariables.map((envVar: any) => (
-                            <div key={envVar.name} className="text-xs">
-                              <div className="flex items-center gap-1">
-                                <code>{envVar.name}</code>
-                                {envVar.isRequired && <span className="text-red-500 text-xs">*</span>}
-                                {envVar.isSecret && <span className="text-orange-500 text-xs">🔒</span>}
-                                {envVar.format && (
-                                  <Badge variant="outline" className="text-xs px-1 py-0 ml-1">
-                                    {envVar.format}
-                                  </Badge>
-                                )}
-                                {envVar.description && (
-                                  <span className="text-muted-foreground ml-2">{envVar.description}</span>
-                                )}
-                                {envVar.value !== undefined && (
-                                  <span className="text-muted-foreground ml-2 flex items-center gap-2">
-                                    <span className="text-muted-foreground">value:</span>
-                                    <code>{envVar.value}</code>
-                                    <CopyButton content={envVar.value} variant="outline" size="sm" />
-                                  </span>
-                                )}
-                                {envVar.default && (
-                                  <span className="text-muted-foreground">
-                                    (default: <code>{envVar.default}</code>)
-                                  </span>
-                                )}
-                              </div>
-
-                              {envVar.choices && envVar.choices.length > 0 && (
-                                <div className="ml-4 mt-1 flex flex-wrap gap-1">
-                                  {envVar.choices.map((choice: string) => (
-                                    <Badge key={choice} variant="secondary" className="text-xs px-1 py-0">
-                                      {choice}
-                                    </Badge>
-                                  ))}
-                                </div>
+                  )}
+                  {pkg.environmentVariables && pkg.environmentVariables.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-muted-foreground">⚙️ Environment Variables:</span>
+                      <div className="mt-1 space-y-1">
+                        {pkg.environmentVariables.map((envVar: any) => (
+                          <div key={envVar.name} className="text-xs">
+                            <div className="flex items-center gap-1">
+                              <code>{envVar.name}</code>
+                              {envVar.isRequired && <span className="text-red-500 text-xs">*</span>}
+                              {envVar.isSecret && <span className="text-orange-500 text-xs">🔒</span>}
+                              {envVar.format && (
+                                <Badge variant="outline" className="text-xs px-1 py-0 ml-1">
+                                  {envVar.format}
+                                </Badge>
+                              )}
+                              {envVar.description && (
+                                <span className="text-muted-foreground ml-2">{envVar.description}</span>
+                              )}
+                              {envVar.value !== undefined && (
+                                <span className="text-muted-foreground ml-2 flex items-center gap-2">
+                                  <span className="text-muted-foreground">value:</span>
+                                  <code>{envVar.value}</code>
+                                  <CopyButton content={envVar.value} variant="outline" size="sm" />
+                                </span>
+                              )}
+                              {envVar.default && (
+                                <span className="text-muted-foreground">
+                                  (default: <code>{envVar.default}</code>)
+                                </span>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {pkg.runtimeArguments && pkg.runtimeArguments.length > 0 && (
-                      <div className="mt-2">
-                        <span className="text-muted-foreground">⚡ Runtime Arguments:</span>
-                        <div className="mt-1 space-y-1">{formatArgs(pkg.runtimeArguments)}</div>
-                      </div>
-                    )}
-                    {pkg.packageArguments && pkg.packageArguments.length > 0 && (
-                      <div className="mt-2">
-                        <span className="text-muted-foreground">⌨️ Package Arguments:</span>
-                        <div className="mt-1 space-y-1">{formatArgs(pkg.packageArguments)}</div>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Actions - wider popover and paired buttons */}
-                  <div className="mt-3 flex flex-col gap-2">
-                    {/* VSCode and Cursor cards */}
-                    <div className="flex flex-col gap-2">
-                      {/* VSCode card */}
-                      <div className="bg-muted/70 p-2 rounded-md inline-flex w-fit items-center gap-2">
-                        <img src={VscodeLogo} alt="VSCode" className="h-4 w-4" />
-                        <div className="flex-1 flex gap-2">
-                          <a
-                            href={`vscode:mcp/install?${encodeURIComponent(
-                              JSON.stringify({
-                                name: item.server.name,
-                                ...buildIdeConfigForPkg(item.server.name, pkg)[item.server.name],
-                              })
-                            )}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex"
-                          >
-                            <Button variant="outline" size="sm">
-                              <FileDown /> Install in VSCode
-                            </Button>
-                          </a>
-                          <CopyButton
-                            content={genVscodeConfigForPkg(item.server.name, pkg)}
-                            variant="outline"
-                            size="sm"
-                          >
-                            Copy config
-                          </CopyButton>
-                        </div>
+                            {envVar.choices && envVar.choices.length > 0 && (
+                              <div className="ml-4 mt-1 flex flex-wrap gap-1">
+                                {envVar.choices.map((choice: string) => (
+                                  <Badge key={choice} variant="secondary" className="text-xs px-1 py-0">
+                                    {choice}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
-
-                      {/* Cursor card */}
-                      <div className="bg-muted/70 p-2 rounded-md inline-flex w-fit items-center gap-2">
-                        <img src={CursorLogo} alt="Cursor" className="[filter:invert(0)] dark:[filter:invert(1)]" />
-                        <div className="flex-1 flex gap-2">
-                          <a
-                            href={`cursor://anysphere.cursor-deeplink/mcp/install?name=${item.server.name}&config=${encodeURIComponent(JSON.stringify(buildIdeConfigForPkg(item.server.name, pkg)[item.server.name]))}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Button variant="outline" size="sm" className="flex-auto">
-                              <FileDown /> Install in Cursor
-                            </Button>
-                          </a>
-                          <CopyButton
-                            className=""
-                            content={genCursorConfigForPkg(item.server.name, pkg)}
-                            variant="outline"
-                            size="sm"
-                          >
-                            Copy config
-                          </CopyButton>
-                        </div>
-                      </div>
-
-                      <Button
-                        className="w-fit"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          return isInStack(item.server.name, 'package', pkgIndex)
-                            ? removeFromStack(item.server.name, 'package', pkgIndex)
-                            : addToStack(item.server.name, 'package', pkg, pkgIndex);
-                        }}
-                      >
-                        {isInStack(item.server.name, 'package', pkgIndex) ? (
-                          <>
-                            <Delete /> Remove from your stack
-                          </>
-                        ) : (
-                          <>
-                            <Plus /> Add to your stack
-                          </>
-                        )}
-                      </Button>
                     </div>
+                  )}
+                  {pkg.runtimeArguments && pkg.runtimeArguments.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-muted-foreground">⚡ Runtime Arguments:</span>
+                      <div className="mt-1 space-y-1">{formatArgs(pkg.runtimeArguments)}</div>
+                    </div>
+                  )}
+                  {pkg.packageArguments && pkg.packageArguments.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-muted-foreground">⌨️ Package Arguments:</span>
+                      <div className="mt-1 space-y-1">{formatArgs(pkg.packageArguments)}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions - wider popover and paired buttons */}
+                <div className="mt-3 flex flex-col gap-2">
+                  {/* VSCode and Cursor cards */}
+                  <div className="flex flex-col gap-2">
+                    {/* VSCode card */}
+                    <div className="bg-muted/70 p-2 rounded-md inline-flex w-fit items-center gap-2">
+                      <img src={VscodeLogo} alt="VSCode" className="h-4 w-4" />
+                      <div className="flex-1 flex gap-2">
+                        <a
+                          href={`vscode:mcp/install?${encodeURIComponent(
+                            JSON.stringify({
+                              name: item.server.name,
+                              ...buildIdeConfigForPkg(item.server.name, pkg)[item.server.name],
+                            })
+                          )}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex"
+                        >
+                          <Button variant="outline" size="sm">
+                            <FileDown /> Install in VSCode
+                          </Button>
+                        </a>
+                        <CopyButton content={genVscodeConfigForPkg(item.server.name, pkg)} variant="outline" size="sm">
+                          Copy config
+                        </CopyButton>
+                      </div>
+                    </div>
+
+                    {/* Cursor card */}
+                    <div className="bg-muted/70 p-2 rounded-md inline-flex w-fit items-center gap-2">
+                      <img src={CursorLogo} alt="Cursor" className="[filter:invert(0)] dark:[filter:invert(1)]" />
+                      <div className="flex-1 flex gap-2">
+                        <a
+                          href={`cursor://anysphere.cursor-deeplink/mcp/install?name=${item.server.name}&config=${encodeURIComponent(JSON.stringify(buildIdeConfigForPkg(item.server.name, pkg)[item.server.name]))}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Button variant="outline" size="sm">
+                            <FileDown /> Install in Cursor
+                          </Button>
+                        </a>
+                        <CopyButton content={genCursorConfigForPkg(item.server.name, pkg)} variant="outline" size="sm">
+                          Copy config
+                        </CopyButton>
+                      </div>
+                    </div>
+
+                    <Button
+                      className="w-fit"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        return isInStack(item.server.name, 'package', pkgIndex)
+                          ? removeFromStack(item.server.name, 'package', pkgIndex)
+                          : addToStack(item.server.name, 'package', pkg, pkgIndex);
+                      }}
+                    >
+                      {isInStack(item.server.name, 'package', pkgIndex) ? (
+                        <>
+                          <Delete /> Remove from your stack
+                        </>
+                      ) : (
+                        <>
+                          <Plus /> Add to your stack
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </PopoverContent>
-              </Popover>
-            );
-          }
-          // )}
-          // // </div>
-        )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          );
+        })}
 
       {/* Remote Servers Section */}
       {item.server.remotes &&
         item.server.remotes.length > 0 &&
         item.server.remotes.map((remote, remoteIndex) => (
-          // <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-md border border-muted">
-          //   <Tooltip>
-          //     <TooltipTrigger asChild>
-          //       <div className="inline-flex items-center">
-          //         <Plug className="h-4 w-4 text-muted-foreground" />
-          //       </div>
-          //     </TooltipTrigger>
-          //     <TooltipContent>
-          //       <p>Remote Servers</p>
-          //     </TooltipContent>
-          //   </Tooltip>
-          // {item.server.remotes.map((remote, remoteIndex) => (
           <Popover key={remoteIndex}>
             <PopoverTrigger asChild>
               <Button
                 // className="group relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-muted hover:bg-muted/30 border border-border rounded-md transition-colors cursor-pointer"
                 variant="outline"
                 size="sm"
-                className="text-xs"
-                // onClick={(e) => e.stopPropagation()}
+                className="text-xs hover:cursor-default"
+                onClick={(e) => e.stopPropagation()}
               >
                 {getRemoteIcon(remote)}
                 <span className="break- font-mono text-muted-foreground">{remote.url?.replace('https://', '')}</span>
@@ -429,8 +391,6 @@ export const ServerEndpointsList = ({
               </div>
             </PopoverContent>
           </Popover>
-          // )}
-          // // </div>
         ))}
     </CardContent>
   );
