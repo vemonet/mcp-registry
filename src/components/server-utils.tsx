@@ -1,6 +1,6 @@
 import { HardDriveUpload, Rss, Link2, Container, Package } from 'lucide-react';
 
-import type { McpServerPackage, McpServerRemote } from '~/lib/types';
+import type { McpServerPkg, McpServerRemote } from '~/lib/types';
 import PypiLogo from '~/components/logos/pypi-logo.svg';
 import NpmLogo from '~/components/logos/npm-logo.svg';
 
@@ -16,7 +16,7 @@ export const getRemoteIcon = (remote: McpServerRemote) => {
 };
 
 /** Get icon for package registry */
-export const getPkgIcon = (pkg: McpServerPackage) => {
+export const getPkgIcon = (pkg: McpServerPkg) => {
   if (pkg.registryType === 'npm') {
     return <img src={NpmLogo} alt="NPM" className="h-4 w-4" style={{ filter: 'grayscale(40%)' }} />;
   } else if (pkg.registryType === 'pypi') {
@@ -29,7 +29,7 @@ export const getPkgIcon = (pkg: McpServerPackage) => {
 };
 
 /** Get URL to view the package in its registry */
-export const getPkgUrl = (pkg: McpServerPackage) => {
+export const getPkgUrl = (pkg: McpServerPkg) => {
   // Determine base registry URL (in case not defined, default to docker)
   const registryUrl = pkg.registryBaseUrl
     ? pkg.registryBaseUrl
@@ -48,7 +48,7 @@ export const getPkgUrl = (pkg: McpServerPackage) => {
 };
 
 /** Get icon for remote access points */
-export const getPkgDefaultCmd = (pkg: McpServerPackage) => {
+export const getPkgDefaultCmd = (pkg: McpServerPkg) => {
   if (pkg.runtimeHint) return pkg.runtimeHint;
   if (pkg.registryType === 'npm') return 'npx';
   if (pkg.registryType === 'pypi') return 'uvx';

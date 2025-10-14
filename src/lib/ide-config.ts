@@ -1,4 +1,4 @@
-import type { IdeConfigPkg, IdeConfigRemote, McpServerPackage, McpServerRemote } from './types';
+import type { IdeConfigPkg, IdeConfigRemote, McpServerPkg, McpServerRemote } from './types';
 
 /** Build server config for a remote server */
 export const buildIdeConfigForRemote = (remote: McpServerRemote): IdeConfigRemote => {
@@ -18,7 +18,7 @@ export const buildIdeConfigForRemote = (remote: McpServerRemote): IdeConfigRemot
 };
 
 /** Build server config for a package */
-export const buildIdeConfigForPkg = (pkg: McpServerPackage): IdeConfigPkg => {
+export const buildIdeConfigForPkg = (pkg: McpServerPkg): IdeConfigPkg => {
   const config: IdeConfigPkg = { command: '' };
   // Add runtime command based on package type
   if (pkg.registryType === 'npm') {

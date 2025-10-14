@@ -33,9 +33,10 @@ import type {
   IdeConfigRemote,
   IdeConfig,
   McpServerItem,
-  McpServerPackage,
+  McpServerPkg,
   McpServerRemote,
   StackItem,
+  StackCtrl,
 } from '~/lib/types';
 // import { initOrama, queryOrama, upsertServers } from '~/lib/orama';
 
@@ -160,42 +161,38 @@ export default function App() {
     localStorage.setItem('mcp-registry-stack', JSON.stringify(stack));
   }, [stack]);
 
-  const addToStack = (
-    serverName: string,
-    type: 'remote' | 'package',
-    data: McpServerPackage | McpServerRemote,
-    index: number,
-    ideConfig?: IdeConfig
-  ) => {
-    // const stackKey = `${serverName}-${type}-${index}`;
-    const existingItem = stack.find(
-      (item) => item.serverName === serverName && item.type === type && item.index === index
-    );
-    if (existingItem) {
-      // If an ideConfig is provided, update the existing item's config
-      if (ideConfig) {
-        setStack((prev) =>
-          prev.map((it) =>
-            it.serverName === serverName && it.type === type && it.index === index ? { ...it, ideConfig } : it
-          )
-        );
+  /** Bundle stack manipulation functions to avoid re-defining them inline in props */
+  const stackCtrl: StackCtrl = {
+    getFromStack: (serverName: string, type: 'remote' | 'package', index: number): StackItem | null => {
+      const found = stack.find((item) => item.serverName === serverName && item.type === type && item.index === index);
+      return found || null;
+    },
+    addToStack: (
+      serverName: string,
+      type: 'remote' | 'package',
+      data: McpServerPkg | McpServerRemote,
+      index: number,
+      ideConfig?: IdeConfig
+    ) => {
+      const existingItem = stack.find(
+        (item) => item.serverName === serverName && item.type === type && item.index === index
+      );
+      if (existingItem) {
+        // If an ideConfig is provided, update the existing item's config
+        if (ideConfig) {
+          setStack((prev) =>
+            prev.map((it) =>
+              it.serverName === serverName && it.type === type && it.index === index ? { ...it, ideConfig } : it
+            )
+          );
+        }
+        return;
       }
-      return;
-    }
-    setStack((prev) => [...prev, { serverName, type, data, index, ideConfig }]);
-  };
-
-  /** Remove item from stack */
-  const removeFromStack = (serverName: string, type: 'remote' | 'package', index: number) => {
-    setStack(stack.filter((item) => !(item.serverName === serverName && item.type === type && item.index === index)));
-  };
-
-  /** Get item from stack (returns the StackItem.data when present, otherwise null)
-   * Returns McpServerPackage when type='package', McpServerRemote when type='remote', or null.
-   */
-  const getFromStack = (serverName: string, type: 'remote' | 'package', index: number): StackItem | null => {
-    const found = stack.find((item) => item.serverName === serverName && item.type === type && item.index === index);
-    return found || null;
+      setStack((prev) => [...prev, { serverName, type, data, index, ideConfig }]);
+    },
+    removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => {
+      setStack(stack.filter((item) => !(item.serverName === serverName && item.type === type && item.index === index)));
+    },
   };
 
   /** Check if server has any items in stack */
@@ -214,7 +211,7 @@ export default function App() {
         servers[item.serverName] =
           item.type === 'remote'
             ? buildIdeConfigForRemote(item.data as McpServerRemote)
-            : buildIdeConfigForPkg(item.data as McpServerPackage);
+            : buildIdeConfigForPkg(item.data as McpServerPkg);
       }
     });
     if (configType === 'vscode') {
@@ -465,7 +462,7 @@ export default function App() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                removeFromStack(item.serverName, item.type, item.index);
+                                stackCtrl.removeFromStack(item.serverName, item.type, item.index);
                               }}
                               className="p-1 hover:bg-destructive/10 rounded transition-colors"
                             >
@@ -627,9 +624,10 @@ export default function App() {
                   <ServerCard
                     item={item}
                     registryUrl={registryUrl}
-                    addToStack={addToStack}
-                    removeFromStack={removeFromStack}
-                    getFromStack={getFromStack}
+                    stackCtrl={stackCtrl}
+                    // addToStack={addToStack}
+                    // removeFromStack={removeFromStack}
+                    // getFromStack={getFromStack}
                   />
                 </Card>
               ))}

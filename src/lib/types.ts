@@ -1,11 +1,24 @@
 export interface StackItem {
   serverName: string;
   type: 'remote' | 'package';
-  data: McpServerPackage | McpServerRemote;
+  data: McpServerPkg | McpServerRemote;
   // Optional IDE configuration filled by the user for this stack entry
   ideConfig?: IdeConfig;
   index: number;
 }
+
+// Helper type that groups the stack manipulation functions exported from App
+export type StackCtrl = {
+  getFromStack: (serverName: string, type: 'remote' | 'package', index: number) => StackItem | null;
+  addToStack: (
+    serverName: string,
+    type: 'remote' | 'package',
+    data: McpServerPkg | McpServerRemote,
+    index: number,
+    ideConfig?: IdeConfig
+  ) => void;
+  removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => void;
+};
 
 // User-filled IDE config union capturing either package or remote config
 export type IdeConfig = IdeConfigPkg | IdeConfigRemote;
@@ -48,20 +61,20 @@ export interface McpServerDetails {
     id?: string;
   };
   remotes?: Array<McpServerRemote>;
-  packages?: Array<McpServerPackage>;
+  packages?: Array<McpServerPkg>;
   websiteUrl?: string;
 }
 
-export interface McpServerPackage {
+export interface McpServerPkg {
   identifier: string;
   registryType: string;
   registryBaseUrl: string;
   version: string;
   runtimeHint?: string;
   /// RuntimeArguments are passed to the package's runtime command (e.g., docker, npx)
-  runtimeArguments?: Array<McpServerPackageArgument>;
+  runtimeArguments?: Array<McpServerPkgArg>;
   /// PackageArguments are passed to the package's binary
-  packageArguments?: Array<McpServerPackageArgument>;
+  packageArguments?: Array<McpServerPkgArg>;
   transport?: McpServerRemote;
   environmentVariables?: Array<EnvVarOrHeader>;
   fileSha256?: string;
@@ -84,8 +97,8 @@ export interface EnvVarOrHeader {
   default?: string;
 }
 
-// RuntimeArgument: unified shape used for packageArguments/runtimeArguments
-export interface McpServerPackageArgument {
+/** MCP server package argument: unified shape used for `packageArguments` and `runtimeArguments` */
+export interface McpServerPkgArg {
   // A list of allowed choices for the argument, or null when not applicable
   choices: string[] | null;
   // Default value for the argument (if any)

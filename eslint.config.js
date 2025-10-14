@@ -32,7 +32,7 @@ export default defineConfig([
     rules: {
       ...reactHooks.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': ['warn'],
-      'react-refresh/only-export-components': ['warn'],
+      // 'react-refresh/only-export-components': ['warn'],
     },
   },
 ]);

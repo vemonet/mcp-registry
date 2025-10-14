@@ -110,7 +110,9 @@ export function PopoverContent({
         avoidCollisions={avoidCollisions}
         collisionPadding={collisionPadding}
         className={cn(
-          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-72 origin-(--radix-popover-content-transform-origin) rounded-md border p-4 shadow-md outline-hidden max-h-[var(--radix-popover-content-available-height)] overflow-auto',
+          'bg-popover text-popover-foreground z-50 w-72 overflow-auto origin-(--radix-popover-content-transform-origin) rounded-md border p-4 shadow-md outline-hidden max-h-[var(--radix-popover-content-available-height)]',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
           className
         )}
         onMouseEnter={handleMouseEnter}
@@ -120,15 +122,3 @@ export function PopoverContent({
     </PopoverPrimitive.Portal>
   );
 }
-
-// // Export hover-capable components and alias them as the default Popover API
-// export {
-//   HoverPopover,
-//   HoverPopoverTrigger,
-//   HoverPopoverContent,
-//   // default aliases so existing imports for `Popover` now use the hover behavior
-//   HoverPopover as Popover,
-//   HoverPopoverTrigger as PopoverTrigger,
-//   HoverPopoverContent as PopoverContent,
-//   PopoverAnchor,
-// };

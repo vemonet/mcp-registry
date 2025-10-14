@@ -1,14 +1,7 @@
 import { Link2, CheckCircle, XCircle, Calendar, House, ChevronDown, Check, Settings } from 'lucide-react';
 import { useState } from 'react';
 
-import type {
-  McpServerDetails,
-  McpServerItem,
-  McpServerPackage,
-  McpServerRemote,
-  IdeConfig,
-  StackItem,
-} from '~/lib/types';
+import type { McpServerDetails, McpServerItem, StackCtrl } from '~/lib/types';
 import { formatDate } from '~/lib/utils';
 import { CardHeader, CardTitle, CardDescription, CardContent } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
@@ -24,10 +17,11 @@ import GithubLogo from '~/components/logos/github.svg';
 import { ServerPkg } from './server-pkg';
 import { ServerRemote } from './server-remote';
 import { getRemoteIcon, getPkgIcon } from './server-utils';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 
-function VersionList({
+/** List and select versions with dropdown */
+const VersionList = ({
   serversData,
   loading,
   error,
@@ -39,7 +33,7 @@ function VersionList({
   error: string | null;
   currentVersion?: string;
   onSelect?: (entry: McpServerItem) => void;
-}) {
+}) => {
   if (loading)
     return (
       <div className="flex items-center gap-2 p-2">
@@ -79,26 +73,16 @@ function VersionList({
       })}
     </div>
   );
-}
+};
 
 /** Display all details on a MCP server */
 export const ServerCard = ({
   item,
-  addToStack,
-  getFromStack,
-  removeFromStack,
+  stackCtrl,
   registryUrl = 'https://registry.modelcontextprotocol.io/v0/servers',
 }: {
   item: McpServerItem;
-  addToStack: (
-    serverName: string,
-    type: 'remote' | 'package',
-    data: McpServerPackage | McpServerRemote,
-    index: number,
-    ideConfig?: IdeConfig
-  ) => void;
-  getFromStack: (serverName: string, type: 'remote' | 'package', index: number) => StackItem | null;
-  removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => void;
+  stackCtrl: StackCtrl;
   registryUrl?: string;
 }) => {
   const [selectedEntry, setSelectedEntry] = useState<McpServerItem | null>(null);
@@ -224,12 +208,12 @@ export const ServerCard = ({
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>
-                      <span className="text-muted-foreground">📅 Published at</span>{' '}
+                      <span className="text-muted-foreground">📅 Published on</span>{' '}
                       {new Date(itemMeta.publishedAt).toLocaleString('fr-FR')}
                     </p>
                     {itemMeta?.updatedAt && itemMeta.updatedAt != itemMeta.publishedAt && (
                       <p>
-                        <span className="text-muted-foreground">♻️ Updated at</span>{' '}
+                        <span className="text-muted-foreground">♻️ Updated on</span>{' '}
                         {new Date(itemMeta.updatedAt).toLocaleString('fr-FR')}
                       </p>
                     )}
@@ -334,49 +318,39 @@ export const ServerCard = ({
             {/* List packages */}
             {Array.isArray(displayedServer.packages) &&
               displayedServer.packages.map((pkg, pkgIndex) => (
-                <Popover key={pkgIndex}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs hover:cursor-default"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                <Dialog key={pkgIndex}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs" onClick={(e) => e.stopPropagation()}>
                       {getPkgIcon(pkg)}
                       <span className="font-mono text-muted-foreground">{pkg.identifier}</span>
                       {pkg.environmentVariables && Object.keys(pkg.environmentVariables).length > 0 && (
                         <Settings className="text-slate-400 flex-shrink-0" />
                       )}
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="text-sm w-fit md:px-16 md:py-10 max-w-[96vw]"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  </DialogTrigger>
+                  <DialogContent>
+                    {/* <DialogHeader>
+                      <DialogTitle>Edit profile</DialogTitle>
+                      <DialogDescription>
+                        Make changes to your profile here
+                      </DialogDescription>
+                    </DialogHeader> */}
                     <ServerPkg
                       key={pkgIndex}
                       item={displayedItem}
                       pkg={pkg}
                       pkgIndex={pkgIndex}
-                      addToStack={addToStack}
-                      removeFromStack={removeFromStack}
-                      getFromStack={getFromStack}
+                      stackCtrl={stackCtrl}
                     />
-                  </PopoverContent>
-                </Popover>
+                  </DialogContent>
+                </Dialog>
               ))}
             {/* List remotes servers */}
             {Array.isArray(displayedServer.remotes) &&
               displayedServer.remotes.map((remote, remoteIndex) => (
-                <Popover key={remoteIndex}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs hover:cursor-default"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                <Dialog key={remoteIndex}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs" onClick={(e) => e.stopPropagation()}>
                       {getRemoteIcon(remote)}
                       <span className="break- font-mono text-muted-foreground">
                         {remote.url?.replace('https://', '')}
@@ -385,24 +359,17 @@ export const ServerCard = ({
                         <Settings className="text-slate-400 flex-shrink-0" />
                       )}
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="text-sm w-fit md:px-16 md:py-10 max-w-[96vw]"
-                    // style={{ width: '60vw', maxWidth: '96vw', height: '90vh' }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  </DialogTrigger>
+                  <DialogContent>
                     <ServerRemote
                       key={remoteIndex}
                       item={displayedItem}
                       remote={remote}
                       remoteIndex={remoteIndex}
-                      addToStack={addToStack}
-                      removeFromStack={removeFromStack}
-                      getFromStack={getFromStack}
+                      stackCtrl={stackCtrl}
                     />
-                  </PopoverContent>
-                </Popover>
+                  </DialogContent>
+                </Dialog>
               ))}
           </CardContent>
         ) : null;

@@ -1,4 +1,3 @@
-import { Plus, Delete } from 'lucide-react';
 import { z } from 'zod';
 import { useMemo, useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -7,46 +6,34 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type {
   EnvVarOrHeader,
   IdeConfigPkg,
-  IdeConfig,
   McpServerItem,
-  McpServerPackage,
-  McpServerPackageArgument,
-  StackItem,
+  McpServerPkg,
+  McpServerPkgArg,
+  StackCtrl,
 } from '~/lib/types';
 import { Badge } from '~/components/ui/badge';
-import { Button } from '~/components/ui/button';
-import VscodeLogo from '~/components/logos/vscode-logo.svg';
-import CursorLogo from '~/components/logos/cursor-logo.svg';
 import { CopyButton } from './ui/copy-button';
 import { FormItem, FormLabel, FormControl, FormField, Form, FormDescription, FormMessage } from './ui/form';
 import { Input } from './ui/input';
 import { getPkgDefaultCmd, getPkgIcon, getPkgUrl } from './server-utils';
 import { PasswordInput } from './ui/password-input';
+import { ServerActionButtons } from './server-action-buttons';
+import { DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
 /** Display all details on a MCP server */
 export const ServerPkg = ({
   item,
   pkg,
   pkgIndex,
-  addToStack,
-  getFromStack,
-  removeFromStack,
+  stackCtrl,
 }: {
   item: McpServerItem;
-  pkg: McpServerPackage;
+  pkg: McpServerPkg;
   pkgIndex: number;
-  addToStack: (
-    serverName: string,
-    type: 'remote' | 'package',
-    data: McpServerPackage,
-    index: number,
-    ideConfig?: IdeConfig
-  ) => void;
-  getFromStack: (serverName: string, type: 'remote' | 'package', index: number) => StackItem | null;
-  removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => void;
+  stackCtrl: StackCtrl;
 }) => {
   // If the user saved an ideConfig for this stack entry, use it as initial defaults
-  const stackEntry = getFromStack(item.server.name, 'package', pkgIndex);
+  const stackEntry = stackCtrl.getFromStack(item.server.name, 'package', pkgIndex);
   const userConfig = stackEntry?.ideConfig as IdeConfigPkg | undefined;
 
   const initialPkgFormDefaults = useMemo(() => {
@@ -72,27 +59,29 @@ export const ServerPkg = ({
   // form.trigger() will correctly report invalid when required env inputs are empty.
   const formSchema = useMemo(() => {
     const baseShape = {
-      command: z.string().min(2, {
-        message: 'Command to run the MCP server must be at least 2 characters.',
+      command: z.string().min(1, {
+        message: 'Command to run the MCP server must be at least 1 character.',
       }),
       args: z.array(z.string()).optional(),
     };
-    let envSchema: Record<string, any> = {};
+    let envSchema = z.record(z.string(), z.string());
     if (pkg.environmentVariables && pkg.environmentVariables.length > 0) {
       const requiredNames = pkg.environmentVariables.filter((ev) => ev.isRequired).map((ev) => ev.name);
-      // Use explicit key/value schemas for z.record and validate required keys via superRefine
-      envSchema = z.record(z.string(), z.string()).superRefine((rec: Record<string, unknown>, ctx) => {
-        requiredNames.forEach((name: string) => {
-          const v = rec[name];
-          if (typeof v !== 'string' || v.trim().length === 0) {
-            ctx.addIssue({
-              code: 'custom',
-              message: `${name} is required`,
-              path: [name],
-            });
-          }
+      if (requiredNames.length > 0) {
+        // Use explicit key/value schemas for z.record and validate required keys via superRefine
+        envSchema = envSchema.superRefine((rec: Record<string, unknown>, ctx) => {
+          requiredNames.forEach((name: string) => {
+            const v = rec[name];
+            if (typeof v !== 'string' || v.trim().length === 0) {
+              ctx.addIssue({
+                code: 'custom',
+                message: `${name} is required`,
+                path: [name],
+              });
+            }
+          });
         });
-      });
+      }
     }
     return z.object({ ...baseShape, env: envSchema });
   }, [pkg.environmentVariables]);
@@ -104,10 +93,12 @@ export const ServerPkg = ({
 
   // Ensure form values reflect any saved user config that may arrive/change
   useEffect(() => {
-    try {
-      form.reset(initialPkgFormDefaults);
-    } catch (e) {
-      // ignore
+    const currentValues = form.getValues();
+    const isSame = JSON.stringify(currentValues) === JSON.stringify(initialPkgFormDefaults);
+    if (!isSame) {
+      try {
+        form.reset(initialPkgFormDefaults);
+      } catch (e) {}
     }
   }, [form, initialPkgFormDefaults]);
 
@@ -135,20 +126,18 @@ export const ServerPkg = ({
     let t: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       try {
         // Only persist if this package is already in the user's stack.
-        // This prevents the debounced autosave from re-adding the package after
-        // the user has clicked "Remove from your stack".
-        const currentlyInStack = getFromStack(item.server.name, 'package', pkgIndex);
+        const currentlyInStack = stackCtrl.getFromStack(item.server.name, 'package', pkgIndex);
         if (currentlyInStack) {
-          addToStack(item.server.name, 'package', pkg, pkgIndex, formValues);
+          stackCtrl.addToStack(item.server.name, 'package', pkg, pkgIndex, formValues);
         }
       } catch (e) {
-        // ignore
+        /* ignore */
       }
     }, 500);
     return () => {
       if (t) clearTimeout(t);
     };
-  }, [addToStack, getFromStack, item.server.name, pkg, pkgIndex, formValues]);
+  }, [item.server.name, pkg, pkgIndex, formValues, stackCtrl]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log('Submitted pkg form', values);
@@ -158,9 +147,8 @@ export const ServerPkg = ({
 
   return (
     <>
-      <div className="space-y-6">
-        {/* Package details */}
-        <div className="flex gap-2 justify-center font-mono text-lg">
+      <DialogHeader>
+        <DialogTitle className="flex gap-2">
           {packageUrl ? (
             <a
               href={packageUrl}
@@ -177,7 +165,11 @@ export const ServerPkg = ({
             </span>
           )}
           <CopyButton content={pkg.identifier} variant="outline" size="sm" />
-        </div>
+        </DialogTitle>
+        {/* <DialogDescription></DialogDescription> */}
+      </DialogHeader>
+      <div className="space-y-6">
+        {/* Package details */}
         <div>
           <p>
             <span className="text-muted-foreground">📦 Type:</span> <code>{pkg.registryType}</code>
@@ -206,7 +198,7 @@ export const ServerPkg = ({
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="command"
@@ -256,6 +248,7 @@ export const ServerPkg = ({
                                 )}
                               </FormControl>
                               <FormDescription>{envVar.description}</FormDescription>
+                              <FormMessage />
                             </FormItem>
                           </div>
                           {envVar.choices && envVar.choices.length > 0 && (
@@ -278,7 +271,7 @@ export const ServerPkg = ({
               <div>
                 <span>⚡ Runtime Arguments</span>
                 <div className="mt-2 space-y-2">
-                  {pkg.runtimeArguments.map((arg: McpServerPackageArgument, aIndex: number) => (
+                  {pkg.runtimeArguments.map((arg: McpServerPkgArg, aIndex: number) => (
                     <FormField
                       key={`rt-${aIndex}`}
                       name={`args.${aIndex}`}
@@ -313,6 +306,7 @@ export const ServerPkg = ({
                                 </>
                               ) : null}
                               <FormDescription>{arg.description}</FormDescription>
+                              <FormMessage />
                             </FormItem>
                           </div>
 
@@ -340,64 +334,17 @@ export const ServerPkg = ({
       </div>
 
       {/* Actions buttons */}
-      <div className="mt-3 flex flex-col gap-2 items-center">
-        <div className="flex flex-wrap md:flex-nowrap gap-2 justify-center">
-          <CopyButton
-            variant="outline"
-            size="sm"
-            className="w-fit"
-            content={JSON.stringify(formValues, null, 2)}
-            onClick={async (e) => {
-              e.stopPropagation();
-              // Trigger validation but still allow copying; save whatever the user has entered before copying
-              await form.trigger();
-            }}
-          >
-            Copy server config
-          </CopyButton>
-          <Button
-            className="w-fit"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              return getFromStack(item.server.name, 'package', pkgIndex)
-                ? removeFromStack(item.server.name, 'package', pkgIndex)
-                : addToStack(item.server.name, 'package', pkg, pkgIndex);
-            }}
-          >
-            {getFromStack(item.server.name, 'package', pkgIndex) ? (
-              <>
-                <Delete /> Remove from your stack
-              </>
-            ) : (
-              <>
-                <Plus /> Add to your stack
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Buttons to install server in IDEs (VSCode, Cursor) */}
-        <div className="flex flex-wrap md:flex-nowrap gap-2 justify-center">
-          <a
-            href={`vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: item.server.name, ...formValues }))}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Button variant="outline" size="sm">
-              <img src={VscodeLogo} alt="VSCode" className="h-4 w-4" /> Install in VSCode
-            </Button>
-          </a>
-          <a
-            href={`cursor://anysphere.cursor-deeplink/mcp/install?name=${item.server.name}&config=${encodeURIComponent(JSON.stringify(formValues))}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Button variant="outline" size="sm">
-              <img src={CursorLogo} alt="Cursor" className="[filter:invert(0)] dark:[filter:invert(1)]" /> Install in
-              Cursor
-            </Button>
-          </a>
-        </div>
-      </div>
+      <ServerActionButtons
+        item={item}
+        endpoint={pkg}
+        endpointIndex={pkgIndex}
+        formValues={formValues}
+        stackCtrl={stackCtrl}
+        onClickCopy={async (e) => {
+          e.stopPropagation();
+          await form.trigger();
+        }}
+      />
     </>
   );
 };
