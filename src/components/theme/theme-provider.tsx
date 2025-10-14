@@ -32,6 +32,7 @@ export function ThemeProvider({
 
   useEffect(() => {
     const root = window.document.documentElement;
+    // Make dark/light mode happen
     root.classList.remove('light', 'dark');
     if (theme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -56,6 +57,7 @@ export function ThemeProvider({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext);
   if (context === undefined) throw new Error('useTheme must be used within a ThemeProvider');

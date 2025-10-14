@@ -59,17 +59,17 @@ export function PopoverTrigger({ children, ...props }: React.ComponentProps<type
 
   const { setOpen, startClose, clearClose, openDelay } = ctx;
 
-  const handleMouseEnter = (e: React.MouseEvent<any>) => {
+  const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
     clearClose();
     // slight delay before opening to avoid accidental hovers
     window.setTimeout(() => setOpen(true), openDelay);
     // props may expect a more specific element type, cast to any to forward safely
-    if ((props as any).onMouseEnter) (props as any).onMouseEnter(e);
+    if (props.onMouseEnter) props.onMouseEnter(e);
   };
 
-  const handleMouseLeave = (e: React.MouseEvent<any>) => {
+  const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
     startClose();
-    if ((props as any).onMouseLeave) (props as any).onMouseLeave(e);
+    if (props.onMouseLeave) props.onMouseLeave(e);
   };
 
   return (
@@ -90,14 +90,14 @@ export function PopoverContent({
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
   const ctx = React.useContext(HoverPopoverContext);
 
-  const handleMouseEnter = (e: React.MouseEvent<any>) => {
+  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
     ctx?.clearClose();
-    if ((props as any).onMouseEnter) (props as any).onMouseEnter(e);
+    if (props.onMouseEnter) props.onMouseEnter(e);
   };
 
-  const handleMouseLeave = (e: React.MouseEvent<any>) => {
+  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
     ctx?.startClose();
-    if ((props as any).onMouseLeave) (props as any).onMouseLeave(e);
+    if (props.onMouseLeave) props.onMouseLeave(e);
   };
 
   return (

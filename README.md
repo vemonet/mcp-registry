@@ -9,18 +9,17 @@ This web app lets you find available MCP servers, and easily install them into c
 - 🌍 Access all MCP servers published to the official MCP registry
 - 🔎 Search by server name, and filter by last published date
 - 🏷️ Browse the published versions of a server
+- ⚙️ Configure MCP servers installation through a user-friendly form
 - 📥 Install MCP servers into compatible clients in 1 click (VSCode and Cursor)
-- 🧩 Build a stack from selected MCP servers, and export to VSCode `mcp.json`, or Cursor config formats
-- 🦊 Runs entirely in the browser, and fetches data directly from [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/docs)
+- 🧩 Build a stack from selected MCP servers, and export to VSCode or Cursor `mcp.json`
 - 🔌 Point the web UI at any compatible registry URL
+- 🦊 Runs entirely in the browser, and fetches data directly from [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/docs)
 
 > [!NOTE]
 >
 > Contributions welcome, in particular regarding integration of new clients install links/config.
 
-## 🧑‍💻 Development
-
-### 📥 Installation
+## 📥 Installation
 
 Install dependencies:
 
@@ -28,7 +27,7 @@ Install dependencies:
 npm i
 ```
 
-### ⚡️ Start server in development
+## ⚡️ Start server in development
 
 Start the development server at http://localhost:5173
 
@@ -44,7 +43,7 @@ npm run dev
 > npx shadcn@latest add button
 > ```
 
-### 🧹 Format, lint and check types
+## 🧹 Format, lint and check types
 
 Format and lint with `prettier` and `eslint`:
 
@@ -62,7 +61,7 @@ npm run typecheck
 >
 > Formatting and type checking will be run automatically when you commit with `husky` and `lint-staged`.
 
-### ⏫ Upgrade dependencies
+## ⏫ Upgrade dependencies
 
 Upgrade dependencies to the latest versions listed in `package.json`:
 
@@ -70,7 +69,7 @@ Upgrade dependencies to the latest versions listed in `package.json`:
 npm run upgrade
 ```
 
-### 📦 Building for Production
+## 📦 Building for Production
 
 Create a production build:
 
@@ -90,6 +89,14 @@ npm run build
 > [!NOTE]
 >
 > If you're familiar with deploying Node applications, the built-in app server is production-ready. Deploy the `dist` folder.
+
+## 🏷️ New release
+
+Choose the bump type: `patch`, `minor`, `major`
+
+```sh
+npm version patch
+```
 
 ## ✅ To do
 

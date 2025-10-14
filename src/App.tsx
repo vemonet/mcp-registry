@@ -3,7 +3,7 @@ import { Search, Unplug, Server, Trash2, Download } from 'lucide-react';
 
 import { buildIdeConfigForPkg, buildIdeConfigForRemote } from '~/lib/ide-config';
 import { Card } from '~/components/ui/card';
-import { ThemeToggle } from '~/components/theme-toggle';
+import { ThemeToggle } from '~/components/theme/theme-toggle';
 import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
 import {
   Pagination,
@@ -24,16 +24,27 @@ import CursorLogo from '~/components/logos/cursor-logo.svg';
 import McpLogo from '~/components/logos/mcp.svg';
 import GithubLogo from '~/components/logos/github.svg';
 import { Button } from '~/components/ui/button';
-import { DatePicker } from '~/components/date-picker';
+import { DatePicker } from '~/components/ui/date-picker';
 import { AboutPopup } from '~/components/about';
-import type { ServerItem, StackItem } from '~/lib/types';
 import { ServerCard } from './components/server-card';
 import { Spinner } from './components/ui/spinner';
+import type {
+  IdeConfigPkg,
+  IdeConfigRemote,
+  IdeConfig,
+  McpServerItem,
+  McpServerPackage,
+  McpServerRemote,
+  StackItem,
+} from '~/lib/types';
+// import { initOrama, queryOrama, upsertServers } from '~/lib/orama';
 
 // TODO: http://localhost:5173/server/ai.alpic.test/test-mcp-server
 // Many remote servers ~page 5:
 // com.cloudflare.mcp/mcp
 // app.thoughtspot/mcp-server
+// Pkg with runtime args: com.supabase/mcp
+// Many env vars in pkg: io.github.CodeLogicIncEngineering/codelogic-mcp-server
 // Many packages and remotes:
 // co.pipeboard/meta-ads-mcp (1)
 // com.driflyte/driflyte-mcp-server
@@ -42,7 +53,7 @@ import { Spinner } from './components/ui/spinner';
 // Empty packages: com.falkordb/QueryWeaver
 
 export default function App() {
-  const [servers, setServers] = useState<ServerItem[]>([]);
+  const [servers, setServers] = useState<McpServerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -149,14 +160,29 @@ export default function App() {
     localStorage.setItem('mcp-registry-stack', JSON.stringify(stack));
   }, [stack]);
 
-  const addToStack = (serverName: string, type: 'remote' | 'package', data: any, index: number) => {
+  const addToStack = (
+    serverName: string,
+    type: 'remote' | 'package',
+    data: McpServerPackage | McpServerRemote,
+    index: number,
+    ideConfig?: IdeConfig
+  ) => {
     // const stackKey = `${serverName}-${type}-${index}`;
     const existingItem = stack.find(
       (item) => item.serverName === serverName && item.type === type && item.index === index
     );
-    if (!existingItem) {
-      setStack([...stack, { serverName, type, data, index }]);
+    if (existingItem) {
+      // If an ideConfig is provided, update the existing item's config
+      if (ideConfig) {
+        setStack((prev) =>
+          prev.map((it) =>
+            it.serverName === serverName && it.type === type && it.index === index ? { ...it, ideConfig } : it
+          )
+        );
+      }
+      return;
     }
+    setStack((prev) => [...prev, { serverName, type, data, index, ideConfig }]);
   };
 
   /** Remove item from stack */
@@ -164,9 +190,12 @@ export default function App() {
     setStack(stack.filter((item) => !(item.serverName === serverName && item.type === type && item.index === index)));
   };
 
-  /** Check if item is in stack */
-  const isInStack = (serverName: string, type: 'remote' | 'package', index: number) => {
-    return stack.some((item) => item.serverName === serverName && item.type === type && item.index === index);
+  /** Get item from stack (returns the StackItem.data when present, otherwise null)
+   * Returns McpServerPackage when type='package', McpServerRemote when type='remote', or null.
+   */
+  const getFromStack = (serverName: string, type: 'remote' | 'package', index: number): StackItem | null => {
+    const found = stack.find((item) => item.serverName === serverName && item.type === type && item.index === index);
+    return found || null;
   };
 
   /** Check if server has any items in stack */
@@ -176,13 +205,17 @@ export default function App() {
 
   /** Generate config for all stack items */
   const generateStackConfig = (configType: 'vscode' | 'cursor') => {
-    const servers: any = {};
+    const servers: { [key: string]: IdeConfigPkg | IdeConfigRemote } = {};
     stack.forEach((item) => {
-      const config =
-        item.type === 'remote'
-          ? buildIdeConfigForRemote(item.serverName, item.data)
-          : buildIdeConfigForPkg(item.serverName, item.data);
-      Object.assign(servers, config);
+      // Prefer the user-filled ideConfig saved on the stack item; fall back to computed defaults
+      if (item.ideConfig) {
+        servers[item.serverName] = item.ideConfig as IdeConfigPkg | IdeConfigRemote;
+      } else {
+        servers[item.serverName] =
+          item.type === 'remote'
+            ? buildIdeConfigForRemote(item.data as McpServerRemote)
+            : buildIdeConfigForPkg(item.data as McpServerPackage);
+      }
     });
     if (configType === 'vscode') {
       return JSON.stringify({ servers }, null, 2);
@@ -237,6 +270,18 @@ export default function App() {
         console.log('Fetched data:', data);
         setServers(data.servers || []);
         setNextCursor(data.metadata?.nextCursor || null);
+        // // Try to upsert into Orama for local search indexing (fail silently)
+        // try {
+        //   if (data?.servers && data.servers.length > 0) {
+        //     await upsertServers(data.servers);
+        //   }
+        // } catch (e) {
+        //   // ignore
+        // }
+        // if (searchQuery) {
+        //   const searchRes = queryOrama(searchQuery);
+        //   console.log('Orama search results:', searchRes);
+        // }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -256,6 +301,23 @@ export default function App() {
     setPageCursors({ 1: null });
     fetchServers(search, null, filterDate);
   }, [search, registryUrl, filterDate, resultsPerPage, fetchServers]);
+
+  // // Initialize Orama (client-side) on mount
+  // useEffect(() => {
+  //   let mounted = true;
+  //   (async () => {
+  //     try {
+  //       if (typeof window === 'undefined') return;
+  //       await initOrama();
+  //       if (!mounted) return;
+  //     } catch (err) {
+  //       // ignore
+  //     }
+  //   })();
+  //   return () => {
+  //     mounted = false;
+  //   };
+  // }, []);
 
   const handleNext = () => {
     if (nextCursor) {
@@ -393,9 +455,9 @@ export default function App() {
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-xs truncate">{item.serverName}</div>
                               <div className="text-xs text-muted-foreground truncate">
-                                {item.type === 'package'
+                                {item.type === 'package' && 'registryType' in item.data && 'identifier' in item.data
                                   ? `${item.data.registryType}: ${item.data.identifier}`
-                                  : `Remote: ${item.data.url}`}
+                                  : `Remote: ${'url' in item.data ? item.data.url : ''}`}
                               </div>
                             </div>
                             <Button
@@ -514,7 +576,7 @@ export default function App() {
                   <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="h-auto py-3 px-4 gap-2">
-                        <span className="text-sm">{resultsPerPage}</span>
+                        <span className="text-sm">{servers.length}</span>
                         <span className="text-xs text-muted-foreground">servers</span>
                       </Button>
                     </DropdownMenuTrigger>
@@ -567,7 +629,7 @@ export default function App() {
                     registryUrl={registryUrl}
                     addToStack={addToStack}
                     removeFromStack={removeFromStack}
-                    isInStack={isInStack}
+                    getFromStack={getFromStack}
                   />
                 </Card>
               ))}

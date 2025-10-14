@@ -1,9 +1,16 @@
-import { Link2, CheckCircle, XCircle, Calendar, House, ChevronDown, Check } from 'lucide-react';
+import { Link2, CheckCircle, XCircle, Calendar, House, ChevronDown, Check, Settings } from 'lucide-react';
 import { useState } from 'react';
 
-import type { ServerItem } from '~/lib/types';
+import type {
+  McpServerDetails,
+  McpServerItem,
+  McpServerPackage,
+  McpServerRemote,
+  IdeConfig,
+  StackItem,
+} from '~/lib/types';
 import { formatDate } from '~/lib/utils';
-import { CardHeader, CardTitle, CardDescription } from '~/components/ui/card';
+import { CardHeader, CardTitle, CardDescription, CardContent } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import {
   DropdownMenu,
@@ -12,6 +19,13 @@ import {
   DropdownMenuItem,
 } from '~/components/ui/dropdown-menu';
 import { Spinner } from '~/components/ui/spinner';
+import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
+import GithubLogo from '~/components/logos/github.svg';
+import { ServerPkg } from './server-pkg';
+import { ServerRemote } from './server-remote';
+import { getRemoteIcon, getPkgIcon } from './server-utils';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Button } from './ui/button';
 
 function VersionList({
   serversData,
@@ -20,11 +34,11 @@ function VersionList({
   currentVersion,
   onSelect,
 }: {
-  serversData: any[] | null;
+  serversData: McpServerItem[] | null;
   loading: boolean;
   error: string | null;
   currentVersion?: string;
-  onSelect?: (entry: any) => void;
+  onSelect?: (entry: McpServerItem) => void;
 }) {
   if (loading)
     return (
@@ -42,7 +56,7 @@ function VersionList({
   return (
     <div>
       {serversData.map((entry) => {
-        const v = entry?.server?.version || entry?.version || String(entry);
+        const v = entry?.server?.version || String(entry);
         const publishedAt = entry?._meta?.['io.modelcontextprotocol.registry/official']?.publishedAt;
         return (
           <DropdownMenuItem
@@ -56,7 +70,7 @@ function VersionList({
             <div className="flex flex-col">
               <span className="text-sm">v{v}</span>
               {publishedAt && (
-                <span className="text-xs text-muted-foreground">{new Date(publishedAt).toLocaleDateString()}</span>
+                <span className="text-xs text-muted-foreground">{formatDate(new Date(publishedAt))}</span>
               )}
             </div>
             {v === currentVersion ? <Check className="h-4 w-4 text-green-600" /> : null}
@@ -66,26 +80,29 @@ function VersionList({
     </div>
   );
 }
-import { Tooltip, TooltipTrigger, TooltipContent } from '~/components/ui/tooltip';
-import GithubLogo from '~/components/logos/github.svg';
-import { ServerEndpointsList } from './server-endpoints-list';
 
 /** Display all details on a MCP server */
 export const ServerCard = ({
   item,
   addToStack,
-  isInStack,
+  getFromStack,
   removeFromStack,
   registryUrl = 'https://registry.modelcontextprotocol.io/v0/servers',
 }: {
-  item: ServerItem;
-  addToStack: (serverName: string, type: 'remote' | 'package', data: any, index: number) => void;
-  isInStack: (serverName: string, type: 'remote' | 'package', index: number) => boolean;
+  item: McpServerItem;
+  addToStack: (
+    serverName: string,
+    type: 'remote' | 'package',
+    data: McpServerPackage | McpServerRemote,
+    index: number,
+    ideConfig?: IdeConfig
+  ) => void;
+  getFromStack: (serverName: string, type: 'remote' | 'package', index: number) => StackItem | null;
   removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => void;
   registryUrl?: string;
 }) => {
-  const [selectedEntry, setSelectedEntry] = useState<any | null>(null);
-  const [serversData, setServersData] = useState<any[] | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<McpServerItem | null>(null);
+  const [serversData, setServersData] = useState<McpServerItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,14 +124,14 @@ export const ServerCard = ({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       console.log('Fetched versions for', item.server.name, data);
-      let servers: any[] = [];
-      if (data && Array.isArray((data as any).servers)) {
-        servers = (data as any).servers;
+      let servers: McpServerItem[] = [];
+      if (data && Array.isArray(data.servers)) {
+        servers = data.servers;
       } else if (Array.isArray(data)) {
         servers = data;
       } else {
         for (const k of Object.keys(data || {})) {
-          const v = (data as any)[k];
+          const v = data[k];
           if (Array.isArray(v)) {
             servers = v;
             break;
@@ -122,21 +139,15 @@ export const ServerCard = ({
         }
       }
       setServersData(servers);
-    } catch (err: any) {
-      setError(err?.message || String(err));
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message);
+      else setError(String(err));
     } finally {
       setLoading(false);
     }
   };
 
-  // The displayed server info should prefer the selected entry (by version) if present.
-  // Versions in the API can be returned as objects where the version sits either on
-  // `entry.server.version` (preferred) or at `entry.version` (legacy). Normalize
-  // both shapes into `displayedServer` so the UI consistently shows the selected
-  // version, repo, website and metadata.
-  const displayedServer = selectedEntry
-    ? selectedEntry.server || { ...item.server, version: selectedEntry.version }
-    : item.server;
+  const displayedServer: McpServerDetails = selectedEntry ? selectedEntry.server : item.server;
   const displayedMeta =
     selectedEntry?._meta?.['io.modelcontextprotocol.registry/official'] ||
     item._meta?.['io.modelcontextprotocol.registry/official'];
@@ -310,16 +321,90 @@ export const ServerCard = ({
           ...item,
           server: displayedServer,
           _meta: { ...(item._meta || {}), ['io.modelcontextprotocol.registry/official']: itemMeta },
-        } as ServerItem;
+        } as McpServerItem;
+
+        // console.log('Rendering ServerCard for', displayedItem, displayedServer);
 
         return (displayedServer.remotes && displayedServer.remotes.length > 0) ||
           (displayedServer.packages && displayedServer.packages.length > 0) ? (
-          <ServerEndpointsList
-            item={displayedItem}
-            addToStack={addToStack}
-            removeFromStack={removeFromStack}
-            isInStack={isInStack}
-          />
+          // Make the card slightly larger than its content on larger screens by
+          // applying a negative horizontal margin and increasing the width.
+          // We use the `lg:` breakpoint so small screens aren't affected.
+          <CardContent className="pt-0 space-y-2 space-x-2 text-center">
+            {/* List packages */}
+            {Array.isArray(displayedServer.packages) &&
+              displayedServer.packages.map((pkg, pkgIndex) => (
+                <Popover key={pkgIndex}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs hover:cursor-default"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {getPkgIcon(pkg)}
+                      <span className="font-mono text-muted-foreground">{pkg.identifier}</span>
+                      {pkg.environmentVariables && Object.keys(pkg.environmentVariables).length > 0 && (
+                        <Settings className="text-slate-400 flex-shrink-0" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    className="text-sm w-fit md:px-16 md:py-10 max-w-[96vw]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ServerPkg
+                      key={pkgIndex}
+                      item={displayedItem}
+                      pkg={pkg}
+                      pkgIndex={pkgIndex}
+                      addToStack={addToStack}
+                      removeFromStack={removeFromStack}
+                      getFromStack={getFromStack}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ))}
+            {/* List remotes servers */}
+            {Array.isArray(displayedServer.remotes) &&
+              displayedServer.remotes.map((remote, remoteIndex) => (
+                <Popover key={remoteIndex}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs hover:cursor-default"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {getRemoteIcon(remote)}
+                      <span className="break- font-mono text-muted-foreground">
+                        {remote.url?.replace('https://', '')}
+                      </span>
+                      {remote.headers && Object.keys(remote.headers).length > 0 && (
+                        <Settings className="text-slate-400 flex-shrink-0" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    className="text-sm w-fit md:px-16 md:py-10 max-w-[96vw]"
+                    // style={{ width: '60vw', maxWidth: '96vw', height: '90vh' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ServerRemote
+                      key={remoteIndex}
+                      item={displayedItem}
+                      remote={remote}
+                      remoteIndex={remoteIndex}
+                      addToStack={addToStack}
+                      removeFromStack={removeFromStack}
+                      getFromStack={getFromStack}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ))}
+          </CardContent>
         ) : null;
       })()}
     </>
