@@ -18,7 +18,7 @@ import { Input } from './ui/input';
 import { getPkgDefaultCmd, getPkgIcon, getPkgUrl } from './server-utils';
 import { PasswordInput } from './ui/password-input';
 import { ServerActionButtons } from './server-action-buttons';
-import { DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { DialogHeader, DialogTitle } from './ui/dialog';
 
 /** Display all details on a MCP server */
 export const ServerPkg = ({

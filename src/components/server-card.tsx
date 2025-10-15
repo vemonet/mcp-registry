@@ -18,7 +18,7 @@ import { ServerPkg } from './server-pkg';
 import { ServerRemote } from './server-remote';
 import { getRemoteIcon, getPkgIcon } from './server-utils';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogTrigger } from './ui/dialog';
 
 /** List and select versions with dropdown */
 const VersionList = ({

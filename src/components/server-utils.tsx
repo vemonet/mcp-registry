@@ -1,8 +1,9 @@
-import { HardDriveUpload, Rss, Link2, Container, Package } from 'lucide-react';
+import { HardDriveUpload, Rss, Link2, Package } from 'lucide-react';
 
 import type { McpServerPkg, McpServerRemote } from '~/lib/types';
 import PypiLogo from '~/components/logos/pypi-logo.svg';
 import NpmLogo from '~/components/logos/npm-logo.svg';
+import DockerLogo from '~/components/logos/docker-logo.svg';
 
 /** Get icon for remote access points */
 export const getRemoteIcon = (remote: McpServerRemote) => {
@@ -22,7 +23,7 @@ export const getPkgIcon = (pkg: McpServerPkg) => {
   } else if (pkg.registryType === 'pypi') {
     return <img src={PypiLogo} alt="PyPI" className="h-4 w-4" style={{ filter: 'grayscale(40%)' }} />;
   } else if (pkg.registryType === 'oci' || pkg.registryType === 'docker') {
-    return <Container className="h-4 w-4 text-muted-foreground" />;
+    return <img src={DockerLogo} alt="Docker" className="h-4 w-4" style={{ filter: 'grayscale(40%)' }} />;
   } else {
     return <Package className="h-4 w-4 text-muted-foreground" />;
   }

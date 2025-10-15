@@ -61,8 +61,8 @@ export const AboutPopup = () => {
             <div className="flex gap-3">
               <Server className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
               <p>
-                Build a stack with a list of MCP servers, that can then be exported in VSCode{' '}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">mcp.json</code> or Cursor formats.
+                Build a stack with a list of MCP servers, that can then be exported to VSCode or Cursor{' '}
+                <code className="text-xs bg-muted px-1 py-0.5 rounded">mcp.json</code>.
               </p>
             </div>
             <div className="flex gap-3">

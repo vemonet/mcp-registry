@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Unplug, Server, Trash2, Download } from 'lucide-react';
+import { Search, Unplug, Server, Trash2, Download, CornerDownLeft } from 'lucide-react';
 
 import { buildIdeConfigForPkg, buildIdeConfigForRemote } from '~/lib/ide-config';
 import { Card } from '~/components/ui/card';
@@ -288,33 +288,35 @@ export default function App() {
     [registryUrl, resultsPerPage]
   );
 
-  // Fetch servers when search, apiUrl, filterDate, or resultsPerPage changes
+  // Fetch servers when apiUrl, filterDate, or resultsPerPage changes (not on every keystroke).
+  // Use `performSearch` to trigger searches from the UI (Enter or button).
   useEffect(() => {
+    // Reset pagination and fetch for the currently confirmed `search` value.
     setCurrentCursor(null);
     setPreviousCursors([]);
     setNextCursor(null);
     setCurrentPage(1);
-    // Reset page cursor map for the new search / filters / settings.
+    // Reset page cursor map for the new filters / settings.
     setPageCursors({ 1: null });
     fetchServers(search, null, filterDate);
-  }, [search, registryUrl, filterDate, resultsPerPage, fetchServers]);
+    // NOTE: we intentionally omit `search` from the dependency list so typing into
+    // the input doesn't trigger a fetch on every keystroke. Searches are triggered
+    // explicitly via `performSearch` which updates `search` and performs the fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registryUrl, filterDate, resultsPerPage, fetchServers]);
 
-  // // Initialize Orama (client-side) on mount
-  // useEffect(() => {
-  //   let mounted = true;
-  //   (async () => {
-  //     try {
-  //       if (typeof window === 'undefined') return;
-  //       await initOrama();
-  //       if (!mounted) return;
-  //     } catch (err) {
-  //       // ignore
-  //     }
-  //   })();
-  //   return () => {
-  //     mounted = false;
-  //   };
-  // }, []);
+  // Helper to perform a confirmed search (called on Enter or when clicking the search button)
+  const performSearch = (newSearch: string) => {
+    // Update the confirmed `search` state which also keeps URL in sync via the existing effect.
+    setSearch(newSearch);
+    // If the query differs from the current confirmed search, reset pagination and fetch
+    setCurrentCursor(null);
+    setPreviousCursors([]);
+    setNextCursor(null);
+    setCurrentPage(1);
+    setPageCursors({ 1: null });
+    fetchServers(newSearch, null, filterDate);
+  };
 
   const handleNext = () => {
     if (nextCursor) {
@@ -551,13 +553,30 @@ export default function App() {
             <div className="relative flex gap-2 items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search MCP servers by name"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-10 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                />
+                <div className="flex">
+                  <input
+                    type="text"
+                    placeholder="Search MCP servers by name"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        performSearch(search);
+                      }
+                    }}
+                    className="w-full rounded-lg border border-input bg-background px-10 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => performSearch(search)}
+                    className="-ml-10 mr-2 self-center h-5 w-8 px-2 text-muted-foreground/80"
+                    aria-label="Search"
+                  >
+                    <CornerDownLeft className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
               {/* Filter Date Button */}
               <DatePicker
@@ -565,7 +584,7 @@ export default function App() {
                 onDateChange={setFilterDate}
                 placeholder="Filter by date"
                 variant={filterDate ? 'default' : 'outline'}
-                className="h-auto py-3 px-4"
+                className="h-auto py-3 px-4 text-muted-foreground"
               />
               {/* Results Per Page Selector */}
               <DropdownMenu>
