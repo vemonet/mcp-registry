@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import type {
   EnvVarOrHeader,
-  IdeConfigPkg,
+  McpIdeConfigPkg,
   McpServerItem,
   McpServerPkg,
   McpServerPkgArg,
@@ -18,7 +18,7 @@ import { Input } from './ui/input';
 import { getPkgDefaultCmd, getPkgIcon, getPkgUrl } from './server-utils';
 import { PasswordInput } from './ui/password-input';
 import { ServerActionButtons } from './server-action-buttons';
-import { DialogHeader, DialogTitle } from './ui/dialog';
+import { DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
 /** Display all details on a MCP server */
 export const ServerPkg = ({
@@ -34,7 +34,7 @@ export const ServerPkg = ({
 }) => {
   // If the user saved an ideConfig for this stack entry, use it as initial defaults
   const stackEntry = stackCtrl.getFromStack(item.server.name, 'package', pkgIndex);
-  const userConfig = stackEntry?.ideConfig as IdeConfigPkg | undefined;
+  const userConfig = stackEntry?.ideConfig as McpIdeConfigPkg | undefined;
 
   const initialPkgFormDefaults = useMemo(() => {
     return {
@@ -55,8 +55,6 @@ export const ServerPkg = ({
   }, [userConfig, pkg]);
 
   // Build a per-package zod schema so we can mark package-declared env vars as required
-  // (non-empty) when the package declares them. This ensures react-hook-form's
-  // form.trigger() will correctly report invalid when required env inputs are empty.
   const formSchema = useMemo(() => {
     const baseShape = {
       command: z.string().min(1, {
@@ -91,21 +89,10 @@ export const ServerPkg = ({
     defaultValues: initialPkgFormDefaults,
   });
 
-  // Ensure form values reflect any saved user config that may arrive/change
-  useEffect(() => {
-    const currentValues = form.getValues();
-    const isSame = JSON.stringify(currentValues) === JSON.stringify(initialPkgFormDefaults);
-    if (!isSame) {
-      try {
-        form.reset(initialPkgFormDefaults);
-      } catch (e) {}
-    }
-  }, [form, initialPkgFormDefaults]);
-
   // Watch the form values and memoize them so they can be accessed directly
   const watchedValues = useWatch({ control: form.control }) as z.infer<typeof formSchema> | undefined;
   const formValues = useMemo(() => {
-    const config: IdeConfigPkg = { command: watchedValues?.command || '' };
+    const config: McpIdeConfigPkg = { command: watchedValues?.command || '' };
     if (watchedValues?.args && watchedValues?.args.length > 0) config.args = watchedValues.args;
     if (watchedValues?.env && Object.keys(watchedValues.env).length > 0)
       config.env = watchedValues.env as Record<string, string>;
@@ -123,24 +110,19 @@ export const ServerPkg = ({
 
   // Persist form changes to the stack (debounced) so user edits are saved as they type
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    let t = setTimeout(() => {
       try {
-        // Only persist if this package is already in the user's stack.
         const currentlyInStack = stackCtrl.getFromStack(item.server.name, 'package', pkgIndex);
-        if (currentlyInStack) {
-          stackCtrl.addToStack(item.server.name, 'package', pkg, pkgIndex, formValues);
-        }
-      } catch (e) {
-        /* ignore */
-      }
+        if (currentlyInStack) stackCtrl.addToStack(item.server.name, 'package', pkg, pkgIndex, formValues);
+      } catch (e) {}
     }, 500);
     return () => {
       if (t) clearTimeout(t);
     };
   }, [item.server.name, pkg, pkgIndex, formValues, stackCtrl]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log('Submitted pkg form', values);
+  function onSubmit(_values: z.infer<typeof formSchema>) {
+    // console.log('Submitted pkg form', values);
   }
 
   const packageUrl = getPkgUrl(pkg);
@@ -166,14 +148,13 @@ export const ServerPkg = ({
           )}
           <CopyButton content={pkg.identifier} variant="outline" size="sm" />
         </DialogTitle>
-        {/* <DialogDescription></DialogDescription> */}
+        <DialogDescription>
+          <span>📦 Type:</span> <code className="text-primary">{pkg.registryType}</code>
+        </DialogDescription>
       </DialogHeader>
       <div className="space-y-6">
         {/* Package details */}
         <div>
-          <p>
-            <span className="text-muted-foreground">📦 Type:</span> <code>{pkg.registryType}</code>
-          </p>
           {pkg.registryBaseUrl && (
             <p>
               <span className="text-muted-foreground">📘 Registry:</span>{' '}
@@ -187,9 +168,11 @@ export const ServerPkg = ({
               </a>
             </p>
           )}
-          <p>
-            <span className="text-muted-foreground">🏷️ Version:</span> <code>{pkg.version}</code>
-          </p>
+          {pkg.version && (
+            <p className="text-muted-foreground">
+              <span className="text-muted-foreground">🏷️ Version:</span> <code>{pkg.version}</code>
+            </p>
+          )}
           {pkg.runtimeHint && (
             <p>
               <span className="text-muted-foreground">💡 Runtime hint:</span> <code>{pkg.runtimeHint}</code>
@@ -297,9 +280,7 @@ export const ServerPkg = ({
                               ) : arg.type === 'named' ? (
                                 // For named flags with no input, include a hidden native input bound to
                                 // react-hook-form so the flag (arg.name) is part of the submitted args
-                                // without the user having to type it.
                                 <>
-                                  {/* {console.log('NAMED ARG WITH NO INPUT (render branch)', { arg, field })} */}
                                   <FormControl>
                                     <Input type="hidden" {...field} />
                                   </FormControl>
@@ -333,7 +314,7 @@ export const ServerPkg = ({
         </Form>
       </div>
 
-      {/* Actions buttons */}
+      {/* Actions buttons (copy config, install in clients) */}
       <ServerActionButtons
         item={item}
         endpoint={pkg}
@@ -348,12 +329,3 @@ export const ServerPkg = ({
     </>
   );
 };
-
-// NOTE: previous formSchema, that does not enable to validate env vars requiredness
-// const formSchema = z.object({
-//   command: z.string().min(2, {
-//     message: 'Command to run the MCP server must be at least 2 characters.',
-//   }),
-//   args: z.array(z.string()).optional(),
-//   env: z.record(z.string(), z.string()).optional(),
-// });

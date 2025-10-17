@@ -1,8 +1,8 @@
-import type { IdeConfigPkg, IdeConfigRemote, McpServerPkg, McpServerRemote } from './types';
+import type { McpIdeConfigPkg, McpIdeConfigRemote, McpServerPkg, McpServerRemote } from './types';
 
 /** Build server config for a remote server */
-export const buildIdeConfigForRemote = (remote: McpServerRemote): IdeConfigRemote => {
-  const config: IdeConfigRemote = {
+export const buildIdeConfigForRemote = (remote: McpServerRemote): McpIdeConfigRemote => {
+  const config: McpIdeConfigRemote = {
     type: remote.type === 'streamable-http' ? 'http' : remote.type,
     url: remote.url,
   };
@@ -18,14 +18,17 @@ export const buildIdeConfigForRemote = (remote: McpServerRemote): IdeConfigRemot
 };
 
 /** Build server config for a package */
-export const buildIdeConfigForPkg = (pkg: McpServerPkg): IdeConfigPkg => {
-  const config: IdeConfigPkg = { command: '' };
+export const buildIdeConfigForPkg = (pkg: McpServerPkg): McpIdeConfigPkg => {
+  const config: McpIdeConfigPkg = { command: '' };
   // Add runtime command based on package type
   if (pkg.registryType === 'npm') {
     config.command = pkg.runtimeHint || 'npx';
     config.args = [pkg.identifier];
   } else if (pkg.registryType === 'pypi') {
     config.command = pkg.runtimeHint || 'uvx';
+    config.args = [pkg.identifier];
+  } else if (pkg.registryType === 'nuget') {
+    config.command = pkg.runtimeHint || 'dnx';
     config.args = [pkg.identifier];
   } else if (pkg.registryType === 'oci') {
     // For Docker/OCI packages, use docker run command

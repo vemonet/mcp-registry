@@ -3,7 +3,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { useEffect, useMemo } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-import type { IdeConfigRemote, McpServerItem, McpServerRemote, StackCtrl } from '~/lib/types';
+import type { McpIdeConfigRemote, McpServerItem, McpServerRemote, StackCtrl } from '~/lib/types';
 import { Badge } from '~/components/ui/badge';
 import { CopyButton } from './ui/copy-button';
 import { FormItem, FormLabel, FormControl, FormField, Form, FormDescription, FormMessage } from './ui/form';
@@ -11,7 +11,7 @@ import { Input } from './ui/input';
 import { getRemoteIcon } from './server-utils';
 import { PasswordInput } from './ui/password-input';
 import { ServerActionButtons } from './server-action-buttons';
-import { DialogHeader, DialogTitle } from './ui/dialog';
+import { DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 
 /** Display all details on a MCP server */
 export const ServerRemote = ({
@@ -25,9 +25,17 @@ export const ServerRemote = ({
   remoteIndex: number;
   stackCtrl: StackCtrl;
 }) => {
+  // Build initial default values for the zod-based form using package metadata
+  const stackEntry = stackCtrl.getFromStack(item.server.name, 'remote', remoteIndex);
+  const userConfig = stackEntry?.ideConfig as McpIdeConfigRemote | undefined;
+
+  const initialFormDefaults = {
+    headers:
+      userConfig?.headers ??
+      (remote.headers ? Object.fromEntries(remote.headers.map((ev) => [ev.name, ev.value ?? ev.default ?? ''])) : {}),
+  };
+
   // Build a per-remote zod schema so we can mark remote-declared headers as required
-  // (non-empty) when the remote declares them. This ensures react-hook-form's
-  // form.trigger() will correctly report invalid when required header inputs are empty.
   const formSchema = useMemo(() => {
     let headersSchema = z.record(z.string(), z.string());
     if (remote.headers && remote.headers.length > 0) {
@@ -51,29 +59,15 @@ export const ServerRemote = ({
     return z.object({ headers: headersSchema });
   }, [remote.headers]);
 
-  // Build initial default values for the zod-based form using package metadata
-  const stackEntry = stackCtrl.getFromStack(item.server.name, 'remote', remoteIndex);
-  const userConfig = stackEntry?.ideConfig as IdeConfigRemote | undefined;
-
-  const initialFormDefaults = {
-    headers:
-      userConfig?.headers ??
-      (remote.headers ? Object.fromEntries(remote.headers.map((ev) => [ev.name, ev.value ?? ev.default ?? ''])) : {}),
-  };
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: initialFormDefaults,
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log('Submit remote form', values);
-  }
-
   // Watch the form values and memoize them so they can be accessed directly
   const watchedValues = useWatch({ control: form.control }) as z.infer<typeof formSchema> | undefined;
   const formValues = useMemo(() => {
-    const config: IdeConfigRemote = { type: remote.type || '' };
+    const config: McpIdeConfigRemote = { type: remote.type || '' };
     if (remote.url) config.url = remote.url;
     if (watchedValues?.headers && Object.keys(watchedValues.headers).length > 0) {
       config.headers = watchedValues.headers;
@@ -83,24 +77,22 @@ export const ServerRemote = ({
 
   // Persist form changes to the stack (debounced) so user edits are saved as they type
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    let t = setTimeout(() => {
       try {
-        // Only persist if this remote is already in the user's stack.
-        // This avoids the following UX issue: when the user clicks the "Remove from your
-        // stack" button, the debounced autosave would re-add the entry immediately.
-        // Check the current stack state at execution time to avoid race conditions.
         const currentlyInStack = stackCtrl.getFromStack(item.server.name, 'remote', remoteIndex);
         if (currentlyInStack) {
           stackCtrl.addToStack(item.server.name, 'remote', remote, remoteIndex, formValues);
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     }, 500);
     return () => {
       if (t) clearTimeout(t);
     };
   }, [item.server.name, remoteIndex, remote, formValues, stackCtrl]);
+
+  function onSubmit(_values: z.infer<typeof formSchema>) {
+    // console.log('Submit remote form', values);
+  }
 
   return (
     <>
@@ -117,89 +109,73 @@ export const ServerRemote = ({
           </a>
           <CopyButton content={remote.url} variant="outline" size="sm" />
         </DialogTitle>
-        {/* <DialogDescription></DialogDescription> */}
+        <DialogDescription className="mt-2">
+          <span>🚛 Transport:</span> <code className="text-primary">{remote.type}</code>
+        </DialogDescription>
       </DialogHeader>
       {/* Remote server details */}
-      <div className="space-y-4">
-        {/* <div className="flex gap-2 justify-center font-mono text-md">
-          <a
-            href={remote.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex gap-2 items-center hover:text-muted-foreground"
-          >
-            {getRemoteIcon(remote)}
-            {remote.url}
-          </a>
-          <CopyButton content={remote.url} variant="outline" size="sm" />
-        </div> */}
-        <p>
-          <span className="text-muted-foreground">🚛 Transport:</span> <code>{remote.type}</code>
-        </p>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {remote.headers && remote.headers.length > 0 && (
-              <div>
-                <span className="text-muted-foreground">⚙️ Headers:</span>
-                <div className="mt-2 space-y-2">
-                  {remote.headers.map((header) => (
-                    <FormField
-                      key={header.name}
-                      control={form.control}
-                      name={`headers.${header.name}`}
-                      render={({ field }) => (
-                        <div className="text-xs">
-                          <div className="flex items-center gap-2">
-                            <FormItem className="flex-1">
-                              <FormLabel>
-                                <code>{header.name}</code>
-                                {header.format && <Badge variant="outline">{header.format}</Badge>}{' '}
-                                {header.isRequired && <span className="text-red-500">*</span>}{' '}
-                                {header.isSecret && <span>🔒</span>}
-                              </FormLabel>
-                              <FormControl>
-                                {header.isSecret ? (
-                                  <PasswordInput
-                                    required={header.isRequired}
-                                    placeholder={header.default ?? header.name ?? ''}
-                                    {...field}
-                                  />
-                                ) : (
-                                  <Input
-                                    required={header.isRequired}
-                                    placeholder={header.default ?? header.name ?? ''}
-                                    {...field}
-                                  />
-                                )}
-                              </FormControl>
-                              <FormDescription>{header.description}</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          </div>
-                          {header.choices && header.choices.length > 0 && (
-                            <div className="ml-4 mt-1 flex flex-wrap md:flex-nowrap gap-1">
-                              {header.choices.map((choice: string) => (
-                                <Badge key={choice} variant="secondary" className="text-xs px-1 py-0">
-                                  {choice}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {remote.headers && remote.headers.length > 0 && (
+            <div>
+              <span className="text-muted-foreground">⚙️ Headers:</span>
+              <div className="mt-2 space-y-2">
+                {remote.headers.map((header) => (
+                  <FormField
+                    key={header.name}
+                    control={form.control}
+                    name={`headers.${header.name}`}
+                    render={({ field }) => (
+                      <div className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <FormItem className="flex-1">
+                            <FormLabel>
+                              <code>{header.name}</code>
+                              {header.format && <Badge variant="outline">{header.format}</Badge>}{' '}
+                              {header.isRequired && <span className="text-red-500">*</span>}{' '}
+                              {header.isSecret && <span>🔒</span>}
+                            </FormLabel>
+                            <FormControl>
+                              {header.isSecret ? (
+                                <PasswordInput
+                                  required={header.isRequired}
+                                  placeholder={header.default ?? header.name ?? ''}
+                                  {...field}
+                                />
+                              ) : (
+                                <Input
+                                  required={header.isRequired}
+                                  placeholder={header.default ?? header.name ?? ''}
+                                  {...field}
+                                />
+                              )}
+                            </FormControl>
+                            <FormDescription>{header.description}</FormDescription>
+                            <FormMessage />
+                          </FormItem>
                         </div>
-                      )}
-                    />
-                  ))}
-                </div>
+                        {header.choices && header.choices.length > 0 && (
+                          <div className="ml-4 mt-1 flex flex-wrap md:flex-nowrap gap-1">
+                            {header.choices.map((choice: string) => (
+                              <Badge key={choice} variant="secondary" className="text-xs px-1 py-0">
+                                {choice}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  />
+                ))}
               </div>
-            )}
-            {/* Hidden submit button so pressing Enter in any input will submit the form */}
-            <button type="submit" className="hidden" aria-hidden="true" />
-          </form>
-        </Form>
-      </div>
+            </div>
+          )}
+          {/* Hidden submit button so pressing Enter in any input will submit the form */}
+          <button type="submit" className="hidden" aria-hidden="true" />
+        </form>
+      </Form>
 
-      {/* Actions buttons */}
+      {/* Actions buttons (copy config, install in clients) */}
       <ServerActionButtons
         item={item}
         endpoint={remote}

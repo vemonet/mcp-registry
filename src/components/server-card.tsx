@@ -1,5 +1,5 @@
 import { Link2, CheckCircle, XCircle, Calendar, House, ChevronDown, Check, Settings } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 import type { McpServerDetails, McpServerItem, StackCtrl } from '~/lib/types';
 import { formatDate } from '~/lib/utils';
@@ -41,12 +41,9 @@ const VersionList = ({
         <span className="text-xs text-muted-foreground">Loading versions…</span>
       </div>
     );
-
   if (error) return <div className="p-2 text-xs text-destructive">Failed to load versions: {error}</div>;
-
   if (!serversData || serversData.length === 0)
     return <div className="p-2 text-xs text-muted-foreground">No versions found</div>;
-
   return (
     <div>
       {serversData.map((entry) => {
@@ -79,11 +76,11 @@ const VersionList = ({
 export const ServerCard = ({
   item,
   stackCtrl,
-  registryUrl = 'https://registry.modelcontextprotocol.io/v0/servers',
+  registryUrl,
 }: {
   item: McpServerItem;
   stackCtrl: StackCtrl;
-  registryUrl?: string;
+  registryUrl: string;
 }) => {
   const [selectedEntry, setSelectedEntry] = useState<McpServerItem | null>(null);
   const [serversData, setServersData] = useState<McpServerItem[] | null>(null);
@@ -91,7 +88,7 @@ export const ServerCard = ({
   const [error, setError] = useState<string | null>(null);
 
   const fetchVersions = async () => {
-    // avoid refetching if we already have data or are loading
+    // Avoid refetching if we already have data or are loading
     if (loading || serversData) return;
     setLoading(true);
     setError(null);
@@ -99,7 +96,6 @@ export const ServerCard = ({
       const url = `${registryUrl}/${encodeURIComponent(item.server.name)}/versions`;
       // Then wrap it with the CORS proxy
       const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
-      console.log('Fetching URL:', url);
       const res = await fetch(proxyUrl, {
         method: 'GET',
         headers: { Accept: 'application/json, application/problem+json' },
@@ -107,22 +103,7 @@ export const ServerCard = ({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      console.log('Fetched versions for', item.server.name, data);
-      let servers: McpServerItem[] = [];
-      if (data && Array.isArray(data.servers)) {
-        servers = data.servers;
-      } else if (Array.isArray(data)) {
-        servers = data;
-      } else {
-        for (const k of Object.keys(data || {})) {
-          const v = data[k];
-          if (Array.isArray(v)) {
-            servers = v;
-            break;
-          }
-        }
-      }
-      setServersData(servers);
+      setServersData(data.servers as McpServerItem[]);
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
       else setError(String(err));
@@ -136,6 +117,14 @@ export const ServerCard = ({
     selectedEntry?._meta?.['io.modelcontextprotocol.registry/official'] ||
     item._meta?.['io.modelcontextprotocol.registry/official'];
   const itemMeta = displayedMeta;
+  const displayedItem = useMemo(() => {
+    return {
+      ...item,
+      server: displayedServer,
+      _meta: { ...(item._meta || {}), ['io.modelcontextprotocol.registry/official']: itemMeta },
+    };
+  }, [item, displayedServer, itemMeta]);
+
   return (
     <>
       <CardHeader>
@@ -299,81 +288,55 @@ export const ServerCard = ({
           </div>
         </div>
       </CardHeader>
-      {(() => {
-        // Create a displayedItem that uses the selected version's server and metadata
-        const displayedItem = {
-          ...item,
-          server: displayedServer,
-          _meta: { ...(item._meta || {}), ['io.modelcontextprotocol.registry/official']: itemMeta },
-        } as McpServerItem;
-
-        // console.log('Rendering ServerCard for', displayedItem, displayedServer);
-
-        return (displayedServer.remotes && displayedServer.remotes.length > 0) ||
-          (displayedServer.packages && displayedServer.packages.length > 0) ? (
-          // Make the card slightly larger than its content on larger screens by
-          // applying a negative horizontal margin and increasing the width.
-          // We use the `lg:` breakpoint so small screens aren't affected.
-          <CardContent className="pt-0 space-y-2 space-x-2 text-center">
-            {/* List packages */}
-            {Array.isArray(displayedServer.packages) &&
-              displayedServer.packages.map((pkg, pkgIndex) => (
-                <Dialog key={pkgIndex}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-xs" onClick={(e) => e.stopPropagation()}>
-                      {getPkgIcon(pkg)}
-                      <span className="font-mono text-muted-foreground">{pkg.identifier}</span>
-                      {pkg.environmentVariables && Object.keys(pkg.environmentVariables).length > 0 && (
-                        <Settings className="text-slate-400 flex-shrink-0" />
-                      )}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    {/* <DialogHeader>
-                      <DialogTitle>Edit profile</DialogTitle>
-                      <DialogDescription>
-                        Make changes to your profile here
-                      </DialogDescription>
-                    </DialogHeader> */}
-                    <ServerPkg
-                      key={pkgIndex}
-                      item={displayedItem}
-                      pkg={pkg}
-                      pkgIndex={pkgIndex}
-                      stackCtrl={stackCtrl}
-                    />
-                  </DialogContent>
-                </Dialog>
-              ))}
-            {/* List remotes servers */}
-            {Array.isArray(displayedServer.remotes) &&
-              displayedServer.remotes.map((remote, remoteIndex) => (
-                <Dialog key={remoteIndex}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-xs" onClick={(e) => e.stopPropagation()}>
-                      {getRemoteIcon(remote)}
-                      <span className="break- font-mono text-muted-foreground">
-                        {remote.url?.replace('https://', '')}
-                      </span>
-                      {remote.headers && Object.keys(remote.headers).length > 0 && (
-                        <Settings className="text-slate-400 flex-shrink-0" />
-                      )}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <ServerRemote
-                      key={remoteIndex}
-                      item={displayedItem}
-                      remote={remote}
-                      remoteIndex={remoteIndex}
-                      stackCtrl={stackCtrl}
-                    />
-                  </DialogContent>
-                </Dialog>
-              ))}
-          </CardContent>
-        ) : null;
-      })()}
+      {(displayedServer.remotes && displayedServer.remotes.length > 0) ||
+      (displayedServer.packages && displayedServer.packages.length > 0) ? (
+        <CardContent className="pt-0 space-y-2 space-x-2 text-center">
+          {/* List packages */}
+          {Array.isArray(displayedServer.packages) &&
+            displayedServer.packages.map((pkg, pkgIndex) => (
+              <Dialog key={pkgIndex}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs" onClick={(e) => e.stopPropagation()}>
+                    {getPkgIcon(pkg)}
+                    <span className="font-mono text-muted-foreground">{pkg.identifier}</span>
+                    {pkg.environmentVariables && Object.keys(pkg.environmentVariables).length > 0 && (
+                      <Settings className="text-slate-400 flex-shrink-0" />
+                    )}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <ServerPkg key={pkgIndex} item={displayedItem} pkg={pkg} pkgIndex={pkgIndex} stackCtrl={stackCtrl} />
+                </DialogContent>
+              </Dialog>
+            ))}
+          {/* List remotes servers */}
+          {Array.isArray(displayedServer.remotes) &&
+            displayedServer.remotes.map((remote, remoteIndex) => (
+              <Dialog key={remoteIndex}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs" onClick={(e) => e.stopPropagation()}>
+                    {getRemoteIcon(remote)}
+                    <span className="break- font-mono text-muted-foreground">
+                      {remote.url?.replace('https://', '')}
+                    </span>
+                    {remote.headers && Object.keys(remote.headers).length > 0 && (
+                      <Settings className="text-slate-400 flex-shrink-0" />
+                    )}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <ServerRemote
+                    key={remoteIndex}
+                    item={displayedItem}
+                    remote={remote}
+                    remoteIndex={remoteIndex}
+                    stackCtrl={stackCtrl}
+                  />
+                </DialogContent>
+              </Dialog>
+            ))}
+        </CardContent>
+      ) : null}
     </>
   );
 };

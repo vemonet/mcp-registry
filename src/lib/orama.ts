@@ -1,4 +1,4 @@
-// // Orama wrapper using static imports and plugin-data-persistence snapshots saved to localStorage
+// // Orama search experiment
 
 // import { create, insert as oramaInsert, update as oramaUpdate, search as oramaSearch } from '@orama/orama';
 // import { persist as persistSnapshot, restore } from '@orama/plugin-data-persistence';

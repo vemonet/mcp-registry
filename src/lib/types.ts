@@ -3,7 +3,7 @@ export interface StackItem {
   type: 'remote' | 'package';
   data: McpServerPkg | McpServerRemote;
   // Optional IDE configuration filled by the user for this stack entry
-  ideConfig?: IdeConfig;
+  ideConfig?: McpIdeConfig;
   index: number;
 }
 
@@ -15,22 +15,22 @@ export type StackCtrl = {
     type: 'remote' | 'package',
     data: McpServerPkg | McpServerRemote,
     index: number,
-    ideConfig?: IdeConfig
+    ideConfig?: McpIdeConfig
   ) => void;
   removeFromStack: (serverName: string, type: 'remote' | 'package', index: number) => void;
 };
 
 // User-filled IDE config union capturing either package or remote config
-export type IdeConfig = IdeConfigPkg | IdeConfigRemote;
+export type McpIdeConfig = McpIdeConfigPkg | McpIdeConfigRemote;
 
-export interface IdeConfigPkg {
+export interface McpIdeConfigPkg {
   command: string;
   args?: Array<string>;
   env?: { [key: string]: string };
   // cwd?: string; // not currently used
 }
 
-export interface IdeConfigRemote {
+export interface McpIdeConfigRemote {
   type: string;
   url?: string;
   headers?: { [key: string]: string };

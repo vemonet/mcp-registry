@@ -1,16 +1,9 @@
 import { Plus, Delete } from 'lucide-react';
 
-import type {
-  IdeConfigPkg,
-  IdeConfigRemote,
-  McpServerItem,
-  McpServerPkg,
-  McpServerRemote,
-  StackCtrl,
-} from '~/lib/types';
+import type { McpIdeConfig, McpServerItem, McpServerPkg, McpServerRemote, StackCtrl } from '~/lib/types';
 import { Button } from '~/components/ui/button';
-import VscodeLogo from '~/components/logos/vscode-logo.svg';
-import CursorLogo from '~/components/logos/cursor-logo.svg';
+import VscodeLogo from '~/components/logos/vscode.svg';
+import CursorLogo from '~/components/logos/cursor.svg';
 import { CopyButton } from './ui/copy-button';
 import { useMemo } from 'react';
 
@@ -23,7 +16,7 @@ export const ServerActionButtons = ({
   stackCtrl,
   onClickCopy,
 }: {
-  formValues: IdeConfigPkg | IdeConfigRemote;
+  formValues: McpIdeConfig;
   item: McpServerItem;
   endpoint: McpServerPkg | McpServerRemote;
   endpointIndex: number;

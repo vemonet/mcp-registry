@@ -101,3 +101,4 @@ npm version patch
 ## ✅ To do
 
 - [ ] Improve filtering: filter by status and server type (stdio, http, sse). Would require new features on the registry API, or handling filters on the client.
+- [ ] Support [mcpb](https://github.com/anthropics/mcpb)?
