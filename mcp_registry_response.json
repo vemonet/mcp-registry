@@ -546,8 +546,16 @@
           "isLatest": true
         }
       }
-    }
-  ],
+    },},
+{
+  "name": "Essay Angle Finder",
+  "description": "AI-powered college essay angle generator that analyzes a student profile and returns ranked personal statement directions",
+  "url": "https://mcp-essay-angle-finder.replit.app/.well-known/mcp/server.json",
+  "category": "education",
+  "tags": ["college", "essay", "writing", "ai"],
+  "website": "https://essayanglefinder.app"
+}
+],
   "metadata": {
     "nextCursor": "ai.smithery/IlyaGusev-academia_mcp:1.16.0",
     "count": 6
