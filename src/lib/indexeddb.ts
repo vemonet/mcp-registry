@@ -305,7 +305,7 @@ const fetchAllServers = async (apiUrl: string): Promise<McpServerItem[]> => {
     // Build the API URL with parameters
     const params = ['version=latest', 'limit=100'];
     if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
-    let baseUrl = apiUrl;
+    let baseUrl = apiUrl.trim();
     if (params.length > 0) {
       baseUrl += `?${params.join('&')}`;
     }

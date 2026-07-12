@@ -113,11 +113,25 @@ export default function App() {
   const [useIndex, setUseIndex] = useState(false);
   const [initializingIndex, setInitializingIndex] = useState(false);
 
+  // Refs mirroring the latest `useIndex`/`registryUrl` values, for use inside the
+  // mount-only effect below whose event listener closures would otherwise stay
+  // frozen to their initial (default) values for the lifetime of the component.
+  const useIndexRef = useRef(useIndex);
+  const registryUrlRef = useRef(registryUrl);
+  const searchRef = useRef('');
+  const fetchServersRef = useRef<(searchQuery?: string, cursor?: string | null) => Promise<void>>(async () => {});
+  useEffect(() => {
+    useIndexRef.current = useIndex;
+  }, [useIndex]);
+  useEffect(() => {
+    registryUrlRef.current = registryUrl;
+  }, [registryUrl]);
+
   const toggleIndex = async (newValue: boolean) => {
     try {
       if (newValue) {
         setInitializingIndex(true);
-        await idbSearch.initServers(registryUrl);
+        await idbSearch.initServers(registryUrl.trim());
       }
     } catch (err) {
       // ignore
@@ -137,13 +151,25 @@ export default function App() {
         const savedUseIndex = await idbSearch.get<boolean>('use-index');
         if (typeof savedUseIndex === 'boolean') setUseIndex(savedUseIndex);
 
-        // If index is enabled, check for stale data and refresh in background
-        if (savedUseIndex) {
-          if (await idbSearch.isDataStale()) idbSearch.refreshInBackground(registryUrl);
+        // Load the saved registry URL before doing anything that depends on it, since
+        // `registryUrl` in this closure is still bound to the initial (default) value —
+        // React state setters don't update it synchronously within this function.
+        const savedApiUrl = await idbSearch.get<string>('mcp-registry-api-url');
+        const effectiveRegistryUrl = savedApiUrl ? savedApiUrl.trim() : registryUrl;
+        if (savedApiUrl) {
+          setRegistryUrl(effectiveRegistryUrl);
+          // Save the trimmed version back to clean up any trailing spaces
+          if (effectiveRegistryUrl !== savedApiUrl) {
+            idbSearch.set('mcp-registry-api-url', effectiveRegistryUrl).catch(() => {});
+          }
         }
 
-        const savedApiUrl = await idbSearch.get<string>('mcp-registry-api-url');
-        if (savedApiUrl) setRegistryUrl(savedApiUrl);
+        // If index is enabled, check for stale data and refresh in background,
+        // using the registry URL we just loaded (not the stale default closure value).
+        if (savedUseIndex) {
+          if (await idbSearch.isDataStale()) idbSearch.refreshInBackground(effectiveRegistryUrl);
+        }
+
         const savedResultsPerPage = await idbSearch.get<string>('results-per-page');
         if (savedResultsPerPage) {
           const parsed = parseInt(savedResultsPerPage, 10);
@@ -151,16 +177,22 @@ export default function App() {
         }
         const savedStack = await idbSearch.getStack();
         if (savedStack && Array.isArray(savedStack)) setStack(savedStack);
-        doSearch(search);
+        // NOTE: don't call doSearch()/fetchServers() here — this closure is frozen to the
+        // initial render's `useIndex`/`registryUrl` (this effect only ever runs once), so it
+        // would race against the dependent effects below (which react to `registryUrl` and
+        // `useIndex` changes) and can overwrite correct results with stale ones. Those
+        // effects already trigger the initial fetch and any settings-driven refetch.
       } catch (err) {
       } finally {
         setSettingsLoaded(true);
       }
     })();
 
-    // Listen for background refresh completion, re-run the search to show updated results
+    // Listen for background refresh completion, re-run the search to show updated results.
+    // Use refs rather than `search`/`fetchServers` directly since this effect only runs once
+    // and would otherwise stay frozen to their initial (mount-time) values.
     const handleServersUpdated = () => {
-      if (useIndex) fetchServers(search, null);
+      if (useIndexRef.current) fetchServersRef.current(searchRef.current, null);
     };
     window.addEventListener('servers-updated', handleServersUpdated);
 
@@ -176,8 +208,8 @@ export default function App() {
 
     // Check for stale data when page becomes visible (user returns to tab)
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && useIndex) {
-        if (await idbSearch.isDataStale()) idbSearch.refreshInBackground(registryUrl);
+      if (document.visibilityState === 'visible' && useIndexRef.current) {
+        if (await idbSearch.isDataStale()) idbSearch.refreshInBackground(registryUrlRef.current.trim());
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -207,6 +239,9 @@ export default function App() {
       return '';
     }
   });
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
 
   // Keep the URL query string in sync with `search` query (debounced)
   useEffect(() => {
@@ -236,7 +271,7 @@ export default function App() {
   // Save states (stack, registry URL, results per page) to IndexedDB when they change
   useEffect(() => {
     if (!settingsLoaded) return;
-    idbSearch.set('mcp-registry-api-url', registryUrl).catch(() => {});
+    idbSearch.set('mcp-registry-api-url', registryUrl.trim()).catch(() => {});
   }, [registryUrl, settingsLoaded]);
 
   useEffect(() => {
@@ -391,7 +426,7 @@ export default function App() {
           // Direct API path: keep using idbSearch.search as a local fallback/demo implementation
           // setServers(await idbSearch.search(searchQuery));
           // Build the API URL first with all parameters
-          let baseUrl = registryUrl;
+          let baseUrl = registryUrl.trim();
           const params = ['version=latest', `limit=${resultsPerPage}`];
           if (searchQuery) params.push(`search=${encodeURIComponent(searchQuery)}`);
           if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
@@ -417,6 +452,9 @@ export default function App() {
     },
     [filterDate, registryUrl, resultsPerPage, useIndex, currentPage, changeIndexedPage, pkgFilters, remoteFilters]
   );
+  useEffect(() => {
+    fetchServersRef.current = fetchServers;
+  }, [fetchServers]);
 
   useEffect(() => {
     // Re-run search with the current query to refresh results and pagination
@@ -560,7 +598,7 @@ export default function App() {
                     type="text"
                     placeholder="Registry API URL"
                     value={registryUrl}
-                    onChange={(e) => setRegistryUrl(e.target.value)}
+                    onChange={(e) => setRegistryUrl(e.target.value.trim())}
                     className="flex-1 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   />
                 </div>
@@ -920,7 +958,7 @@ export default function App() {
                   }`}
                 >
                   {/* MCP Server card to display a server */}
-                  <ServerCard item={item} registryUrl={registryUrl} stackCtrl={stackCtrl} />
+                  <ServerCard item={item} registryUrl={registryUrl.trim()} stackCtrl={stackCtrl} />
                 </Card>
               ))}
             </div>

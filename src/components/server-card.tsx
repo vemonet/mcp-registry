@@ -94,7 +94,7 @@ export const ServerCard = ({
     setLoading(true);
     setError(null);
     try {
-      const url = `${registryUrl}/${encodeURIComponent(item.server.name)}/versions`;
+      const url = `${registryUrl.trim()}/${encodeURIComponent(item.server.name)}/versions`;
       // Then wrap it with the CORS proxy
       // const res = await fetch(proxyUrl(url), {
       const res = await fetch(url, {
