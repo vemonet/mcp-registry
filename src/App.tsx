@@ -80,6 +80,13 @@ export default function App() {
   // The currently-displayed page still lives in `servers`.
   const indexedResultsRef = useRef<McpServerItem[] | null>(null);
 
+  // Monotonically increasing id used to detect and discard stale `fetchServers` calls.
+  // Effects (especially with React StrictMode's dev-mode double-invoke) can kick off a
+  // fetch using not-yet-updated defaults (e.g. the default public registry URL) before
+  // settings finish loading from IndexedDB. Without this guard, that earlier request can
+  // resolve later and silently overwrite newer, correct results with stale ones.
+  const activeRequestIdRef = useRef(0);
+
   // Helper to change the visible page when using the local index (client-side pagination).
   // Encapsulates computing bounds, slicing the results, and updating pagination cursors.
   const changeIndexedPage = useCallback(
@@ -361,6 +368,13 @@ export default function App() {
   /** Fetch servers from the API */
   const fetchServers = useCallback(
     async (searchQuery = '', cursor: string | null = null) => {
+      // Tag this invocation and bail out of updating state later if a newer call has since
+      // started. Effects (especially with React StrictMode's dev-mode double-invoke) can
+      // kick off a fetch using not-yet-updated defaults (e.g. the default public registry
+      // URL, before settings finish loading from IndexedDB) — without this guard, that
+      // request can resolve later and silently overwrite newer, correct results.
+      const requestId = ++activeRequestIdRef.current;
+      const isStale = () => activeRequestIdRef.current !== requestId;
       setLoading(true);
       setError(null);
       try {
@@ -369,6 +383,7 @@ export default function App() {
           await idbSearch.init();
           // Get all matching results from the index and page them client-side
           let all = await idbSearch.search(searchQuery);
+          if (isStale()) return;
           // Apply client-side filters when using the local index
           const pkgKeys = Object.keys(pkgFilters).filter((k) => pkgFilters[k]);
           const remKeys = Object.keys(remoteFilters).filter((k) => remoteFilters[k]);
@@ -443,13 +458,14 @@ export default function App() {
           if (!response.ok) throw new Error(`Error when querying the registry API (${response.status})`);
           const data = await response.json();
           // console.log('Fetched data:', data);
+          if (isStale()) return;
           setServers(data.servers || []);
           setNextCursor(data.metadata?.nextCursor || null);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        if (!isStale()) setError(err instanceof Error ? err.message : String(err));
       } finally {
-        setLoading(false);
+        if (!isStale()) setLoading(false);
       }
     },
     [filterDate, registryUrl, resultsPerPage, useIndex, currentPage, changeIndexedPage, pkgFilters, remoteFilters]

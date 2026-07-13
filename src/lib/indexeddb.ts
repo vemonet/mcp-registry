@@ -167,7 +167,7 @@ export class IndexedDB {
   async refreshInBackground(registryUrl: string): Promise<void> {
     setTimeout(async () => {
       try {
-        console.log('Starting background server refresh...');
+        console.log('Starting background server refresh...', { registryUrl });
         const docs = await fetchAllServers(registryUrl);
         await this.saveServers(docs);
         await this.setLastFetchTime(Date.now());
