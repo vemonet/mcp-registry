@@ -100,7 +100,9 @@ export const ServerCard = ({
       const res = await fetch(url, {
         method: 'GET',
         headers: { Accept: 'application/json, application/problem+json' },
-        cache: 'force-cache' as const,
+        // Registry contents can change at any time; avoid the browser's HTTP cache
+        // serving an indefinitely-stale response for the same query string.
+        cache: 'no-store' as const,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();

@@ -436,7 +436,9 @@ export default function App() {
           const response = await fetch(baseUrl, {
             method: 'GET',
             headers: { Accept: 'application/json, application/problem+json' },
-            cache: 'force-cache' as const,
+            // Registry contents can change at any time; avoid the browser's HTTP cache
+            // serving an indefinitely-stale response for the same query string.
+            cache: 'no-store' as const,
           });
           if (!response.ok) throw new Error(`Error when querying the registry API (${response.status})`);
           const data = await response.json();
